@@ -95,6 +95,14 @@ export async function startCore(opts: StartCoreOptions = {}): Promise<TestCore> 
       NATS_URL: undefined,
       VALKEY_URL: undefined,
       SMTP_URL: undefined,
+      // Signing an upload or download URL is local arithmetic — it needs credentials but reaches no
+      // server — so the file procedures are covered without object storage running. Nothing here
+      // transfers bytes; a test that does will need a real MinIO.
+      S3_ENDPOINT: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
+      S3_REGION: process.env.S3_REGION ?? 'us-east-1',
+      S3_BUCKET: process.env.S3_BUCKET ?? 'kern-test',
+      S3_ACCESS_KEY: process.env.S3_ACCESS_KEY ?? 'kern-test-access-key',
+      S3_SECRET_KEY: process.env.S3_SECRET_KEY ?? 'kern-test-secret-key',
       KERN_ADMIN_EMAIL: undefined,
       KERN_ADMIN_PASSWORD: undefined,
       ...opts.env,
