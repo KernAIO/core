@@ -33,6 +33,7 @@
     "@better-auth/sso": "^1.7.1",
     "@kernhq/contracts": "^0.1.0",
     "@kernhq/kernel": "^0.1.0",
+    "@kernhq/module-tracker": "^0.1.2",
     "@orpc/contract": "^1.15.0",
     "@orpc/openapi": "^1.15.0",
     "@orpc/server": "^1.15.0",

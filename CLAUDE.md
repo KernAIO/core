@@ -60,6 +60,16 @@ permission resolution, notifications, files, search, the audit log, and the admi
 and a reference UI at `/api/docs`.
 
 **Things worth knowing**
+- This service hosts **feature modules** as well as `core` — see `featureModules` in `src/service.ts`.
+  A module only needs its own service when it has a runtime reason (chat holds websockets, mail holds
+  IMAP connections, collab is CPU-bound CRDT merging); everything else lives here. Adding one is a
+  dependency plus a line in that array: the kernel runs its migrations into `mod_<id>`, mounts its
+  router at `/api/<id>`, registers its permissions and jobs, and it appears in the workspace modules
+  directory enabled by default. `/api/*` already routes here in Caddy and in the app's dev proxy, so
+  nothing else changes.
+- A module that nothing hosts is invisible: its own tests pass, it publishes, and every call 404s.
+  `src/tests/hosted-modules.test.ts` uses each hosted module through this service so that cannot
+  happen quietly.
 - Authentication is **Better Auth**, adapted onto our Drizzle schema in `src/modules/core/schema/auth.ts`.
   That schema must match what Better Auth expects exactly — a missing column fails at runtime, not at
   compile time. `accounts.issuer` was missing once and broke every sign-up.

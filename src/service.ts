@@ -1,4 +1,5 @@
 import { createHttpServer, createKernel, type Kernel } from '@kernhq/kernel'
+import { trackerModule } from '@kernhq/module-tracker/server'
 import type { FastifyInstance } from 'fastify'
 import { createAuth } from './auth/auth.js'
 import { createMailer } from './auth/mail.js'
@@ -25,6 +26,14 @@ export interface CoreService {
 }
 
 /**
+ * The modules this service hosts. `core` is always here; the rest are feature modules that have no
+ * runtime reason to be their own process (chat, mail and collab do, and are separate services).
+ * Each brings its own Postgres schema, migrations, router at `/api/<id>`, jobs and permissions, and
+ * a workspace can switch it off — so hosting one here is not the same as forcing it on anyone.
+ */
+const featureModules = [trackerModule]
+
+/**
  * Boots the core service: kernel (DB, events, jobs, authz) + Better Auth + the core module,
  * then the Fastify server for API roles. `main.ts` / `worker.ts` are thin wrappers around this,
  * and tests boot it against a scratch database.
@@ -37,7 +46,7 @@ export async function createCoreService(opts: CoreServiceOptions = {}): Promise<
   const kernel = await createKernel({
     service: 'core',
     version: CORE_VERSION,
-    modules: [coreModule],
+    modules: [coreModule, ...featureModules],
     role,
     env: opts.env ?? {},
     authzStore: createAuthzStore,

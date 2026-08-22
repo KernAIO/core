@@ -56,6 +56,11 @@ export interface TestCore {
   anonymous: CoreApi
   /** client for a trusted service principal (`kernel.system`) */
   system: CoreApi
+  /**
+   * A client for another module this service hosts. Typed as `unknown` on purpose: core must not
+   * depend on a feature module's contract types to be able to check that it is reachable.
+   */
+  moduleApi(moduleId: string, principal: Principal): unknown
   signUp(input?: { email?: string; password?: string; name?: string }): Promise<TestUser>
   /** current principal of a signed-up user, re-read from the database */
   principalOf(userId: string): Promise<Principal>
@@ -114,6 +119,21 @@ export async function startCore(opts: StartCoreOptions = {}): Promise<TestCore> 
   if (!mod?.router) throw new Error('core module did not expose a router')
   const router = mod.router(kernel)
 
+  /** A client for any module this service hosts, so a suite can check one is really reachable. */
+  const moduleClientFor = (moduleId: string, principal: Principal): unknown => {
+    const hosted = kernel.registry.get(moduleId)
+    if (!hosted?.router) throw new Error(`${moduleId} is not hosted by this service`)
+    return createRouterClient(hosted.router(kernel), {
+      context: (): RequestContext => ({
+        kernel,
+        principal,
+        requestId: `test-${randomBytes(4).toString('hex')}`,
+        ip: '127.0.0.1',
+        headers: {},
+      }),
+    })
+  }
+
   const clientFor = (principal: Principal): CoreApi =>
     createRouterClient(router, {
       context: (): RequestContext => ({
@@ -156,6 +176,7 @@ export async function startCore(opts: StartCoreOptions = {}): Promise<TestCore> 
     kernel,
     databaseUrl: scratch.url,
     api: clientFor,
+    moduleApi: moduleClientFor,
     anonymous: clientFor(ANONYMOUS),
     system: clientFor(kernel.system),
     principalOf,
