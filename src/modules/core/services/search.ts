@@ -98,12 +98,14 @@ export async function search(
   if (input.modules?.length) conds.push(inArray(searchDocuments.module, input.modules))
   if (input.types?.length) conds.push(inArray(searchDocuments.objectType, input.types))
   if (!principal.instanceAdmin && principal.kind !== 'service')
-    conds.push(sql`(${searchDocuments.acl} is null or ${searchDocuments.acl} && ${subjects}::text[])`)
+    conds.push(
+      sql`(${searchDocuments.acl} is null or ${searchDocuments.acl} && ${sql.param(subjects)}::text[])`,
+    )
   // enabled modules only
   const disabled: string[] = []
   for (const mod of kernel.manifests())
     if (!mod.core && !(await kernel.isModuleEnabled(input.workspaceId, mod.id))) disabled.push(mod.id)
-  if (disabled.length) conds.push(sql`${searchDocuments.module} <> all(${disabled}::text[])`)
+  if (disabled.length) conds.push(sql`${searchDocuments.module} <> all(${sql.param(disabled)}::text[])`)
 
   const rank = sql<number>`ts_rank(${searchDocuments.tsv}, websearch_to_tsquery('simple', ${q}))`
   const sim = sql<number>`similarity(${searchDocuments.title}, ${q})`

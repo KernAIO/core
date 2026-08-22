@@ -15,6 +15,13 @@
       "when": 1787340797363,
       "tag": "0001_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787340798363,
+      "tag": "0002_account_issuer",
+      "breakpoints": true
     }
   ]
 }

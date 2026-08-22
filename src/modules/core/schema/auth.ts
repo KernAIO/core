@@ -68,6 +68,8 @@ export const account = coreSchema.table(
     id: uuid('id').primaryKey().default(sql`uuidv7()`),
     accountId: text('account_id').notNull(),
     providerId: text('provider_id').notNull(),
+    /** OIDC issuer of the identity provider (set by the SSO/OAuth flows) */
+    issuer: text('issuer'),
     userId: uuid('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
