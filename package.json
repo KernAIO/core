@@ -21,7 +21,7 @@
     "start:worker": "node dist/worker.js",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
@@ -51,6 +51,7 @@
   "devDependencies": {
     "@better-auth/cli": "^1.4.21",
     "@biomejs/biome": "^2.5.0",
+    "@kernhq/testing": "^0.1.0",
     "@kernhq/tsconfig": "^0.1.0",
     "@types/node": "^24.0.0",
     "@types/nodemailer": "^7.0.0",

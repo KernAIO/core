@@ -62,3 +62,13 @@ and a reference UI at `/api/docs`.
   was found.
 - Broker procedures (`core.users.principal`, `core.authz.*`, `core.notifications.create` …) are how
   other services reach identity. They are service-to-service only: `requireService` rejects end users.
+- **RLS only bites under a role that cannot bypass it.** Superusers (and the table owner without
+  `FORCE`) ignore every policy, so a dev database owned by a superuser will happily pass a test that
+  proves nothing — `src/testing/harness.ts` opens a second connection as an unprivileged role for that
+  reason. Run the application as a plain role in production.
+- Filtering by `kernel.manifests()` only sees modules hosted **in this process**. Core hosts nothing but
+  itself, so anything that must reason about other modules (search's enabled-module filter) has to read
+  `workspace_modules` instead.
+- Tests boot the real service against a scratch database (`src/testing/harness.ts`) and drive the module
+  router through an oRPC server-side client, so middleware runs exactly as it does over HTTP.
+  `pnpm typecheck` uses `tsconfig.test.json` (tests included); `pnpm build` excludes them.

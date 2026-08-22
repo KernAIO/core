@@ -1,7 +1,7 @@
 import type { core } from '@kernhq/contracts'
 import type { Kernel } from '@kernhq/kernel'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { searchDocuments } from '../schema/index.js'
+import { searchDocuments, workspaceModules } from '../schema/index.js'
 import { type Ctx, membershipOf } from './common.js'
 
 export async function indexDocuments(kernel: Kernel, docs: core.SearchDocument[]): Promise<number> {
@@ -101,10 +101,20 @@ export async function search(
     conds.push(
       sql`(${searchDocuments.acl} is null or ${searchDocuments.acl} && ${sql.param(subjects)}::text[])`,
     )
-  // enabled modules only
-  const disabled: string[] = []
-  for (const mod of kernel.manifests())
-    if (!mod.core && !(await kernel.isModuleEnabled(input.workspaceId, mod.id))) disabled.push(mod.id)
+  // Enabled modules only. The workspace's module state is the source of truth rather than this
+  // process's manifest list: almost every module that indexes documents is hosted by another service
+  // and never appears in the core registry, so filtering by `kernel.manifests()` would let a disabled
+  // module's documents keep showing up in search.
+  const disabled = (
+    await kernel.database.withWorkspace(input.workspaceId, (tx) =>
+      tx
+        .select({ moduleId: workspaceModules.moduleId })
+        .from(workspaceModules)
+        .where(and(eq(workspaceModules.workspaceId, input.workspaceId), eq(workspaceModules.enabled, false))),
+    )
+  )
+    .map((r) => r.moduleId)
+    .filter((id) => !kernel.registry.get(id)?.definition.core)
   if (disabled.length) conds.push(sql`${searchDocuments.module} <> all(${sql.param(disabled)}::text[])`)
 
   const rank = sql<number>`ts_rank(${searchDocuments.tsv}, websearch_to_tsquery('simple', ${q}))`
