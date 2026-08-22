@@ -28,3 +28,37 @@ The repositories are **public**, so every commit is visible the moment it is pus
 - `pnpm typecheck && pnpm lint && pnpm test && pnpm build` must pass before pushing.
 - UI follows `app/DESIGN.md` (Ink/paper design system) and must work in RTL (fa/ar) and dark mode.
 - All user-facing strings go through i18n (Paraglide) — no hardcoded English in components.
+
+## Keeping this file current
+This file is how the next person — or the next agent — avoids repeating what we already worked out.
+When you learn something durable, add it here **in the same commit as the change that taught you**:
+- a trap that cost you time (a silent failure, a misleading error, a tool that lies about success)
+- a convention you had to infer from reading several files
+- a decision and the reason behind it, especially where the obvious choice is wrong
+Keep it specific and short. Delete anything that stops being true — a stale note is worse than none.
+
+---
+
+# This repository: core (identity, workspaces, permissions)
+
+The service every other one depends on: accounts and sessions, workspaces and membership, roles and
+permission resolution, notifications, files, search, the audit log, and the admin console API. Runs on
+**:4000** and mounts its module at `/api/core`, with the OpenAPI document at `/api/core/openapi.json`
+and a reference UI at `/api/docs`.
+
+**Things worth knowing**
+- Authentication is **Better Auth**, adapted onto our Drizzle schema in `src/modules/core/schema/auth.ts`.
+  That schema must match what Better Auth expects exactly — a missing column fails at runtime, not at
+  compile time. `accounts.issuer` was missing once and broke every sign-up.
+- Better Auth's plugin types are nominal: if two copies of `better-auth` end up in the tree, plugins
+  stop satisfying `BetterAuthPlugin` and the whole `auth.api` type degrades. The umbrella pins one copy
+  through `pnpm.overrides`.
+- **Which tables are row-level secured matters.** Tenant tables carry `workspace_id` and an RLS policy
+  driven by `app.workspace_id`; global tables (users, workspaces, memberships, notifications, push
+  subscriptions, instance settings) deliberately are not. `database.withWorkspace()` sets the setting —
+  a tenant query outside it returns nothing.
+- Drizzle interpolates a JavaScript array as a row constructor (`($1,$2)`), not as an array. Use
+  `sql.param(values)` when a query needs a real `text[]` — search failed on every request until this
+  was found.
+- Broker procedures (`core.users.principal`, `core.authz.*`, `core.notifications.create` …) are how
+  other services reach identity. They are service-to-service only: `requireService` rejects end users.
