@@ -1,6 +1,6 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createDatabase, createLogger } from '@kernalo/kernel'
+import { createDatabase, createLogger } from '@kernaio/kernel'
 import './env.js'
 
 // Standalone migration runner (`pnpm db:migrate`). The service also migrates at boot;

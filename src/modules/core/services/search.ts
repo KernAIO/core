@@ -1,5 +1,5 @@
-import type { core } from '@kernalo/contracts'
-import type { Kernel } from '@kernalo/kernel'
+import type { core } from '@kernaio/contracts'
+import type { Kernel } from '@kernaio/kernel'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { searchDocuments } from '../schema/index.js'
 import { type Ctx, membershipOf } from './common.js'

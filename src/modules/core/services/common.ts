@@ -1,6 +1,6 @@
-import type { BuiltinRole, Principal } from '@kernalo/contracts'
-import { coreEvents } from '@kernalo/contracts/core'
-import { KernError, type Kernel } from '@kernalo/kernel'
+import type { BuiltinRole, Principal } from '@kernaio/contracts'
+import { coreEvents } from '@kernaio/contracts/core'
+import { KernError, type Kernel } from '@kernaio/kernel'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { memberships, user } from '../schema/index.js'
 

@@ -1,5 +1,5 @@
 {
-  "name": "@kernalo/core",
+  "name": "@kernaio/core",
   "version": "0.1.0",
   "private": true,
   "description": "Kern core service: identity/auth, workspaces, members, permissions, notifications, settings, files, search + module host",
@@ -7,7 +7,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/KernALO/core"
+    "url": "https://github.com/KernAIO/core"
   },
   "packageManager": "pnpm@10.30.3",
   "engines": {
@@ -31,8 +31,8 @@
     "@better-auth/api-key": "^1.7.1",
     "@better-auth/passkey": "^1.7.1",
     "@better-auth/sso": "^1.7.1",
-    "@kernalo/contracts": "^0.1.0",
-    "@kernalo/kernel": "^0.1.0",
+    "@kernaio/contracts": "^0.1.0",
+    "@kernaio/kernel": "^0.1.0",
     "@orpc/contract": "^1.15.0",
     "@orpc/openapi": "^1.15.0",
     "@orpc/server": "^1.15.0",

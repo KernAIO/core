@@ -1,5 +1,5 @@
-import { coreContract } from '@kernalo/contracts'
-import { authed, type Kernel, type RequestContext, requires, workspaceScoped } from '@kernalo/kernel'
+import { coreContract } from '@kernaio/contracts'
+import { authed, type Kernel, type RequestContext, requires, workspaceScoped } from '@kernaio/kernel'
 import { implement } from '@orpc/server'
 import type { CoreDeps } from './deps.js'
 import { MODULE_ID } from './schema/base.js'

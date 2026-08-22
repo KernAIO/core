@@ -1,4 +1,4 @@
-import type { Kernel } from '@kernalo/kernel'
+import type { Kernel } from '@kernaio/kernel'
 import nodemailer, { type Transporter } from 'nodemailer'
 import type { CoreEnv } from '../env.js'
 

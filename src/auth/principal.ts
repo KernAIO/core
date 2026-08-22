@@ -1,5 +1,5 @@
-import { ANONYMOUS, type MembershipSummary, type Principal } from '@kernalo/contracts'
-import { type Kernel, systemPrincipal } from '@kernalo/kernel'
+import { ANONYMOUS, type MembershipSummary, type Principal } from '@kernaio/contracts'
+import { type Kernel, systemPrincipal } from '@kernaio/kernel'
 import { eq } from 'drizzle-orm'
 import type { FastifyRequest } from 'fastify'
 import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'

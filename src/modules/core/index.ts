@@ -1,13 +1,13 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Principal } from '@kernalo/contracts'
+import { Principal } from '@kernaio/contracts'
 import {
   CreateNotification,
   coreEvents,
   corePermissions,
   RecordActivity,
   SearchDocument,
-} from '@kernalo/contracts/core'
+} from '@kernaio/contracts/core'
 import {
   type AuthzStore,
   defineModule,
@@ -15,7 +15,7 @@ import {
   KernError,
   type Kernel,
   type ServerModule,
-} from '@kernalo/kernel'
+} from '@kernaio/kernel'
 import { z } from 'zod'
 import type { CoreDeps } from './deps.js'
 import { createCoreRouter } from './router.js'
