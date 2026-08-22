@@ -183,32 +183,50 @@ describe('row-level security under a role that cannot bypass it', () => {
     }
   })
 
-  it('keeps every tenant table in the core schema protected', async () => {
-    const rows = await core.kernel.database.db.execute<{ tablename: string; rowsecurity: boolean }>(
-      sql`select tablename, rowsecurity from pg_tables where schemaname = 'mod_core' order by tablename`,
+  it('protects every tenant table in the core schema', async () => {
+    // Derived from the schema, not from a list of tables someone remembered to add: a new table
+    // with a `workspace_id` and no policy has to fail this, which is the only way the test is worth
+    // running. The exceptions are the tables that are deliberately global — the reason for each is
+    // in `migrations/0001_rls.sql` — and taking one off this list is a decision, not an oversight.
+    const GLOBAL_ON_PURPOSE = new Set(['files', 'invitations', 'memberships', 'notifications'])
+
+    const { rows } = await core.kernel.database.db.execute<{
+      tablename: string
+      rowsecurity: boolean
+      forced: boolean
+    }>(
+      sql`select t.tablename, t.rowsecurity, c.relforcerowsecurity as forced
+          from pg_tables t
+          join pg_namespace n on n.nspname = t.schemaname
+          join pg_class c on c.relnamespace = n.oid and c.relname = t.tablename
+          where t.schemaname = 'mod_core'
+            and exists (
+              select 1 from information_schema.columns col
+              where col.table_schema = t.schemaname
+                and col.table_name = t.tablename
+                and col.column_name = 'workspace_id'
+            )
+          order by t.tablename`,
     )
-    const protectedTables = rows.rows.filter((r) => r.rowsecurity).map((r) => r.tablename)
-    expect(protectedTables).toEqual(
-      expect.arrayContaining([
-        'activity_events',
-        'group_members',
-        'groups',
-        'integrations',
-        'role_bindings',
-        'roles',
-        'search_documents',
-        'workspace_modules',
-      ]),
-    )
-    for (const table of protectedTables) {
-      const forced = await core.kernel.database.db.execute<{ relforcerowsecurity: boolean }>(
-        sql`select relforcerowsecurity from pg_class c
-            join pg_namespace n on n.oid = c.relnamespace
-            where n.nspname = 'mod_core' and c.relname = ${table}`,
-      )
+
+    // a query that stopped returning rows would make everything below vacuously true
+    expect(rows.length).toBeGreaterThan(8)
+
+    const tenant = rows.filter((r) => !GLOBAL_ON_PURPOSE.has(r.tablename))
+    expect(tenant.length).toBeGreaterThan(0)
+    for (const row of tenant) {
+      expect(row.rowsecurity, `${row.tablename} carries a workspace_id and needs RLS`).toBe(true)
       // FORCE matters: without it the table owner (which the app usually is) silently bypasses RLS
-      expect(forced.rows[0]?.relforcerowsecurity, `${table} should FORCE row level security`).toBe(true)
+      expect(row.forced, `${row.tablename} should FORCE row level security`).toBe(true)
     }
+
+    // an exception that has since been secured means the list is stale and hiding a real table
+    for (const row of rows.filter((r) => GLOBAL_ON_PURPOSE.has(r.tablename)))
+      expect(row.rowsecurity, `${row.tablename} is listed as global but is now secured`).toBe(false)
+
+    const names = new Set(rows.map((r) => r.tablename))
+    for (const listed of GLOBAL_ON_PURPOSE)
+      expect(names.has(listed), `${listed} is listed as an exception but is not a tenant table`).toBe(true)
   })
 })
 
