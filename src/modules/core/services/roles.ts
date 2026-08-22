@@ -1,5 +1,5 @@
-import type { core } from '@kernaio/contracts'
-import { type Binding, KernError, type Kernel } from '@kernaio/kernel'
+import type { core } from '@kernhq/contracts'
+import { type Binding, KernError, type Kernel } from '@kernhq/kernel'
 import { and, asc, eq, inArray, or, sql } from 'drizzle-orm'
 import type { z } from 'zod'
 import { serBinding, serRole } from '../lib/ser.js'

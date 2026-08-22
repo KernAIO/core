@@ -1,5 +1,5 @@
-import type { core, Page } from '@kernaio/contracts'
-import { KernError, type Kernel } from '@kernaio/kernel'
+import type { core, Page } from '@kernhq/contracts'
+import { KernError, type Kernel } from '@kernhq/kernel'
 import { and, asc, desc, eq, gt, ne, or, sql } from 'drizzle-orm'
 import { decodeCursor, encodeCursor, paginate } from '../lib/cursor.js'
 import { serUser, serWorkspace } from '../lib/ser.js'
@@ -28,7 +28,7 @@ export async function setInstanceSetting(kernel: Kernel, key: string, value: unk
 
 export async function getInstanceSettings(kernel: Kernel): Promise<core.InstanceSettings> {
   const stored = (await getInstanceSetting<Partial<core.InstanceSettings>>(kernel, INSTANCE_KEY)) ?? {}
-  const { InstanceSettings } = await import('@kernaio/contracts/core')
+  const { InstanceSettings } = await import('@kernhq/contracts/core')
   return InstanceSettings.parse({ baseUrl: kernel.env.KERN_BASE_URL, ...stored })
 }
 

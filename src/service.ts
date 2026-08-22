@@ -1,4 +1,4 @@
-import { createHttpServer, createKernel, type Kernel } from '@kernaio/kernel'
+import { createHttpServer, createKernel, type Kernel } from '@kernhq/kernel'
 import type { FastifyInstance } from 'fastify'
 import { createAuth } from './auth/auth.js'
 import { createMailer } from './auth/mail.js'

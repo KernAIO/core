@@ -1,5 +1,5 @@
-import type { core, Page } from '@kernaio/contracts'
-import type { Kernel } from '@kernaio/kernel'
+import type { core, Page } from '@kernhq/contracts'
+import type { Kernel } from '@kernhq/kernel'
 import { and, desc, eq, lt, or } from 'drizzle-orm'
 import { decodeCursor, encodeCursor, paginate } from '../lib/cursor.js'
 import { serActivity } from '../lib/ser.js'

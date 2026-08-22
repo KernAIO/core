@@ -1,4 +1,4 @@
-import type { Kernel } from '@kernaio/kernel'
+import type { Kernel } from '@kernhq/kernel'
 import { eq } from 'drizzle-orm'
 import type { CoreDeps } from './modules/core/deps.js'
 import { user } from './modules/core/schema/index.js'

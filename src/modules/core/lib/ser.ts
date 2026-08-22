@@ -1,4 +1,4 @@
-import type { core } from '@kernaio/contracts'
+import type { core } from '@kernhq/contracts'
 import type {
   activityEvents,
   files,

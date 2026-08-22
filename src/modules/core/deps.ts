@@ -1,4 +1,4 @@
-import type { Kernel } from '@kernaio/kernel'
+import type { Kernel } from '@kernhq/kernel'
 import type { Auth } from '../../auth/auth.js'
 import type { Mailer } from '../../auth/mail.js'
 import type { PrincipalResolver } from '../../auth/principal.js'

@@ -1,4 +1,4 @@
-import type { Kernel } from '@kernaio/kernel'
+import type { Kernel } from '@kernhq/kernel'
 import type { FastifyInstance } from 'fastify'
 import { toHeaders } from './auth/principal.js'
 import type { CoreDeps } from './modules/core/deps.js'

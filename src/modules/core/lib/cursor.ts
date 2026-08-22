@@ -1,4 +1,4 @@
-import { KernError } from '@kernaio/kernel'
+import { KernError } from '@kernhq/kernel'
 
 /** Opaque cursor = base64url(JSON [sortKey, id]). */
 export function encodeCursor(sortKey: string | number | null, id: string): string {

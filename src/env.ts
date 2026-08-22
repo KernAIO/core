@@ -1,6 +1,6 @@
 /**
  * Loads `.env` files (repo-local first, then the umbrella dev workspace `../../.env`) outside production and
- * validates core-specific environment variables. Kernel-level variables are validated by `@kernaio/kernel`.
+ * validates core-specific environment variables. Kernel-level variables are validated by `@kernhq/kernel`.
  */
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
