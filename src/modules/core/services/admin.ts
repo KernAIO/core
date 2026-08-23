@@ -1,5 +1,5 @@
 import type { core, Page } from '@kernhq/contracts'
-import { KernError, type Kernel } from '@kernhq/kernel'
+import { describeModule, KernError, type Kernel } from '@kernhq/kernel'
 import { and, asc, desc, eq, gt, ne, or, sql } from 'drizzle-orm'
 import { decodeCursor, encodeCursor, paginate } from '../lib/cursor.js'
 import { serUser, serWorkspace } from '../lib/ser.js'
@@ -133,6 +133,19 @@ export async function listWorkspaces(
 export function listModules(ctx: Ctx) {
   requireInstanceAdmin(ctx)
   return ctx.kernel.manifests().map((m) => ({ ...m, host: ctx.kernel.service, healthy: true }))
+}
+
+/**
+ * What each module hosted by this service actually registered.
+ *
+ * Checked, not declared: the contract and the router are walked and compared, so a procedure that
+ * was promised and never implemented shows up here rather than as a 404 somebody hits later. Only
+ * modules in *this* process can be inspected — a module hosted by chat or mail answers this
+ * question in its own service.
+ */
+export function diagnostics(ctx: Ctx) {
+  requireInstanceAdmin(ctx)
+  return ctx.kernel.registry.all().map((mod) => describeModule(mod, ctx.kernel.service))
 }
 
 export { desc }

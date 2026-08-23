@@ -1,6 +1,6 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Principal } from '@kernhq/contracts'
+import { coreContract, Principal } from '@kernhq/contracts'
 import {
   CreateNotification,
   coreEvents,
@@ -96,6 +96,8 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
         },
       ],
     }),
+    /** Attached so the developer panel can check the router against what the contract promised. */
+    contract: coreContract,
     schema: coreSchema,
     migrationsFolder: join(dirname(fileURLToPath(import.meta.url)), '../../../migrations'),
     router: (kernel) => createCoreRouter(kernel, deps),

@@ -292,6 +292,7 @@ export function createCoreRouter(kernel: Kernel, deps: CoreDeps) {
       workspaces: auth.admin.workspaces.handler(async ({ input, context }) =>
         admin.listWorkspaces(ctxOf(context), input),
       ),
+      diagnostics: auth.admin.diagnostics.handler(async ({ context }) => admin.diagnostics(ctxOf(context))),
       modules: auth.admin.modules.handler(async ({ context }) => admin.listModules(ctxOf(context))),
       updates: {
         get: auth.admin.updates.get.handler(async ({ context }) => updates.getStatus(ctxOf(context))),
