@@ -1,3 +1,7 @@
+<p align="center">
+<img src="https://raw.githubusercontent.com/KernAIO/kern/main/assets/kern-mark.svg" width="56" alt="">
+</p>
+
 # core
 
 **Who people are, which workspaces they belong to, and what they are allowed to do.**
