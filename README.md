@@ -85,3 +85,5 @@ Every module this service hosts adds its own `/api/<module>` prefix and its own 
 ## Contributing
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md). Licence: [AGPL-3.0](LICENSE).
+
+Website: [kernaio.com](https://kernaio.com).
