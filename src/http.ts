@@ -67,5 +67,24 @@ function mountApiDocs(app: FastifyInstance, kernel: Kernel): void {
     </script>
   </body>
 </html>`
-  app.get('/api/docs', async (_req, reply) => reply.type('text/html').send(html))
+  /*
+   * The reference UI is the one HTML page this service serves, and it loads Scalar from a CDN — so
+   * it has to relax the API's `default-src 'none'` for itself rather than the whole service
+   * loosening for one developer-facing page. The CDN is a third party in the page's origin: it is
+   * pinned to nothing and could change under us, which is worth knowing but is not worth blocking
+   * a docs page over.
+   */
+  const DOCS_CSP = [
+    "default-src 'none'",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "font-src 'self' data: https://cdn.jsdelivr.net",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ')
+
+  app.get('/api/docs', async (_req, reply) =>
+    reply.type('text/html').header('content-security-policy', DOCS_CSP).send(html),
+  )
 }

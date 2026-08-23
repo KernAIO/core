@@ -1,4 +1,5 @@
 import { createHttpServer, createKernel, type Kernel } from '@kernhq/kernel'
+import { billingModule } from '@kernhq/module-billing/server'
 import { trackerModule } from '@kernhq/module-tracker/server'
 import type { FastifyInstance } from 'fastify'
 import { createAuth } from './auth/auth.js'
@@ -8,7 +9,7 @@ import { bootstrap } from './bootstrap.js'
 import { type CoreEnv, loadCoreEnv } from './env.js'
 import { extendHttp } from './http.js'
 import { type CoreDeps, createDepsRef } from './modules/core/deps.js'
-import { CORE_VERSION, createAuthzStore, createCoreModule } from './modules/core/index.js'
+import { createAuthzStore, createCoreModule } from './modules/core/index.js'
 
 export interface CoreServiceOptions {
   role?: 'api' | 'worker' | 'both'
@@ -31,7 +32,7 @@ export interface CoreService {
  * Each brings its own Postgres schema, migrations, router at `/api/<id>`, jobs and permissions, and
  * a workspace can switch it off — so hosting one here is not the same as forcing it on anyone.
  */
-const featureModules = [trackerModule]
+export const featureModules = [trackerModule, billingModule]
 
 /**
  * Boots the core service: kernel (DB, events, jobs, authz) + Better Auth + the core module,
@@ -44,8 +45,9 @@ export async function createCoreService(opts: CoreServiceOptions = {}): Promise<
   const deps = createDepsRef()
   const coreModule = createCoreModule(deps)
   const kernel = await createKernel({
+    // no `version` here on purpose: the kernel reads KERN_VERSION, the release the image was built
+    // as, so every service in an instance answers the same thing
     service: 'core',
-    version: CORE_VERSION,
     modules: [coreModule, ...featureModules],
     role,
     env: opts.env ?? {},
@@ -76,7 +78,7 @@ export async function createCoreService(opts: CoreServiceOptions = {}): Promise<
       resolvePrincipal: (req) => deps.principals.resolve(req),
       corsOrigins,
       extend: (fastify) => extendHttp(fastify, kernel, deps),
-      openapi: { title: 'Kern', version: CORE_VERSION },
+      openapi: { title: 'Kern', version: kernel.version },
     })
   }
 

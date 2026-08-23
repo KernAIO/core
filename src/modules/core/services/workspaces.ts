@@ -6,7 +6,14 @@ import { z } from 'zod'
 import { serWorkspace } from '../lib/ser.js'
 import { memberships, roles, workspaces } from '../schema/index.js'
 import { getInstanceSettings } from './admin.js'
-import { BUILTIN_ROLES, type Ctx, callerRole, permissionsChanged, requireUser } from './common.js'
+import {
+  BUILTIN_ROLES,
+  type Ctx,
+  callerRole,
+  ilikeEscape,
+  permissionsChanged,
+  requireUser,
+} from './common.js'
 import { workspaceSummaries } from './users.js'
 
 export const RESERVED_SLUGS = new Set([
@@ -53,6 +60,31 @@ export async function requireWorkspace(kernel: Kernel, id: string) {
   const w = await getWorkspaceRow(kernel, id)
   if (!w) throw KernError.notFound('Workspace')
   return w
+}
+
+/**
+ * Every workspace on the instance, as identity only.
+ *
+ * Service-to-service, and thin on purpose: another module holds workspace ids and needs names to put
+ * beside them, which is not a reason to hand it membership or settings. Archived workspaces are
+ * included — an operator still has to see what an archived workspace was costing.
+ */
+export async function listAll(
+  kernel: Kernel,
+  input: { q?: string; limit: number },
+): Promise<Array<{ id: string; name: string; slug: string; archivedAt: string | null }>> {
+  const rows = await kernel.database.db
+    .select({
+      id: workspaces.id,
+      name: workspaces.name,
+      slug: workspaces.slug,
+      archivedAt: workspaces.archivedAt,
+    })
+    .from(workspaces)
+    .where(input.q ? sql`${workspaces.name} ilike ${`%${ilikeEscape(input.q)}%`}` : undefined)
+    .orderBy(workspaces.name)
+    .limit(input.limit)
+  return rows.map((r) => ({ ...r, archivedAt: r.archivedAt?.toISOString() ?? null }))
 }
 
 export async function list(ctx: Ctx): Promise<core.WorkspaceSummary[]> {

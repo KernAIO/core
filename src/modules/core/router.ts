@@ -6,6 +6,7 @@ import { MODULE_ID } from './schema/base.js'
 import * as activity from './services/activity.js'
 import * as admin from './services/admin.js'
 import type { Ctx } from './services/common.js'
+import * as dashboard from './services/dashboard.js'
 import * as filesSvc from './services/files.js'
 import * as groups from './services/groups.js'
 import * as invitations from './services/invitations.js'
@@ -14,6 +15,7 @@ import * as modules from './services/modules.js'
 import * as notifications from './services/notifications.js'
 import * as roles from './services/roles.js'
 import * as search from './services/search.js'
+import * as updates from './services/updates.js'
 import * as users from './services/users.js'
 import * as workspaces from './services/workspaces.js'
 
@@ -33,7 +35,7 @@ export function createCoreRouter(kernel: Kernel, deps: CoreDeps) {
       ok: true,
       service: kernel.service,
       version: kernel.version,
-      modules: kernel.registry.ids(),
+      modules: kernel.registry.all().map((m) => ({ id: m.definition.id, version: m.definition.version })),
     })),
 
     users: {
@@ -198,6 +200,32 @@ export function createCoreRouter(kernel: Kernel, deps: CoreDeps) {
         .handler(async ({ input, context }) => activity.list(ctxOf(context), input)),
     },
 
+    /**
+     * `get`, `save` and `reset` are membership-only: they touch the caller's own row, and every
+     * widget drawn inside is gated by the procedure it calls. The `settings` group reuses
+     * `core.workspace.manage` — whoever sets the workspace logo sets its home page.
+     */
+    dashboard: {
+      get: scoped.dashboard.get.handler(async ({ input, context }) => dashboard.get(ctxOf(context), input)),
+      save: scoped.dashboard.save.handler(async ({ input, context }) =>
+        dashboard.save(ctxOf(context), input),
+      ),
+      reset: scoped.dashboard.reset.handler(async ({ input, context }) =>
+        dashboard.reset(ctxOf(context), input),
+      ),
+      settings: {
+        get: scoped.dashboard.settings.get
+          .use(requires('core.workspace.manage'))
+          .handler(async ({ input, context }) => dashboard.settingsGet(ctxOf(context), input)),
+        set: scoped.dashboard.settings.set
+          .use(requires('core.workspace.manage'))
+          .handler(async ({ input, context }) => dashboard.settingsSet(ctxOf(context), input)),
+        saveWorkspace: scoped.dashboard.settings.saveWorkspace
+          .use(requires('core.workspace.manage'))
+          .handler(async ({ input, context }) => dashboard.saveWorkspace(ctxOf(context), input)),
+      },
+    },
+
     notifications: {
       list: auth.notifications.list.handler(async ({ input, context }) =>
         notifications.list(ctxOf(context), input),
@@ -265,6 +293,14 @@ export function createCoreRouter(kernel: Kernel, deps: CoreDeps) {
         admin.listWorkspaces(ctxOf(context), input),
       ),
       modules: auth.admin.modules.handler(async ({ context }) => admin.listModules(ctxOf(context))),
+      updates: {
+        get: auth.admin.updates.get.handler(async ({ context }) => updates.getStatus(ctxOf(context))),
+        check: auth.admin.updates.check.handler(async ({ context }) => updates.checkNow(ctxOf(context))),
+        setPolicy: auth.admin.updates.setPolicy.handler(async ({ input, context }) =>
+          updates.setPolicy(ctxOf(context), input),
+        ),
+        plan: auth.admin.updates.plan.handler(async ({ context }) => updates.getPlan(ctxOf(context))),
+      },
     },
   })
 }

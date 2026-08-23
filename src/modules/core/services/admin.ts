@@ -26,6 +26,11 @@ export async function setInstanceSetting(kernel: Kernel, key: string, value: unk
     })
 }
 
+/** Remove a key entirely. `value` is not nullable, so "no setting" is the absence of the row. */
+export async function clearInstanceSetting(kernel: Kernel, key: string): Promise<void> {
+  await kernel.database.db.delete(instanceSettings).where(eq(instanceSettings.key, key))
+}
+
 export async function getInstanceSettings(kernel: Kernel): Promise<core.InstanceSettings> {
   const stored = (await getInstanceSetting<Partial<core.InstanceSettings>>(kernel, INSTANCE_KEY)) ?? {}
   const { InstanceSettings } = await import('@kernhq/contracts/core')

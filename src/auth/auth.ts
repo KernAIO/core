@@ -5,6 +5,7 @@ import { coreEvents } from '@kernhq/contracts/core'
 import { type Kernel, uuidv7 } from '@kernhq/kernel'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { admin, bearer, jwt, magicLink, multiSession, twoFactor } from 'better-auth/plugins'
 import type { CoreEnv } from '../env.js'
 import { authSchema } from '../modules/core/schema/auth.js'
@@ -106,6 +107,33 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
       },
     },
     socialProviders,
+    hooks: {
+      /**
+       * Registering an identity provider is a plan feature on instances that sell one.
+       *
+       * It has to be caught here rather than in a Kern procedure, because the endpoint belongs to
+       * Better Auth and never passes through the module router. `organizationId` is the workspace —
+       * without one there is nothing to check a plan against, so the request is refused rather than
+       * quietly treated as unlimited.
+       */
+      before: createAuthMiddleware(async (ctx) => {
+        if (!ctx.path.startsWith('/sso/register')) return
+        const workspaceId = (ctx.body as { organizationId?: string } | undefined)?.organizationId
+        if (!workspaceId)
+          throw new APIError('BAD_REQUEST', {
+            message: 'organizationId is required: an identity provider belongs to a workspace',
+          })
+        if (!(await kernel.entitlements.has(workspaceId, 'sso'))) {
+          const { planName } = await kernel.entitlements.of(workspaceId)
+          throw new APIError('FORBIDDEN', {
+            message: planName
+              ? `Single sign-on is not included in the ${planName} plan`
+              : 'Single sign-on is not included in this workspace plan',
+            code: 'BILLING_SSO_NOT_INCLUDED',
+          })
+        }
+      }),
+    },
     databaseHooks: {
       user: {
         create: {
@@ -161,8 +189,11 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
       multiSession({ maximumSessions: 10 }),
       apiKey({ enableSessionForAPIKeys: true, apiKeyHeaders: ['x-api-key'] }),
       admin({ defaultRole: 'user', adminRoles: ['admin'] }),
-      // SSO (OIDC/SAML) per workspace: providers are registered through Better Auth's /sso/register endpoint.
-      // TODO: gate registration on `core.workspace.manage` of the target workspace (organizationId = workspaceId).
+      // SSO (OIDC/SAML) per workspace: providers are registered through Better Auth's /sso/register
+      // endpoint. The `before` hook above refuses registration when the workspace's plan does not
+      // include SSO.
+      // TODO: also gate registration on `core.workspace.manage` of the target workspace — the plan
+      // check is not a permission check, and today any member of an entitled workspace can register.
       sso(),
     ],
   })

@@ -74,6 +74,17 @@ export async function setEnabled(ctx: Ctx, workspaceId: string, moduleId: string
   const mod = kernel.registry.get(moduleId)
   const manifest = kernel.manifests().find((m) => m.id === moduleId)
   if (manifest?.core) throw KernError.conflict('Core modules are always enabled', 'core.module.core')
+  if (enabled && !(await kernel.entitlements.allowsModule(workspaceId, moduleId))) {
+    const { planName } = await kernel.entitlements.of(workspaceId)
+    throw new KernError(
+      'CONFLICT',
+      planName
+        ? `"${moduleId}" is not included in the ${planName} plan`
+        : `"${moduleId}" is not included in this workspace's plan`,
+      { module: moduleId, plan: planName },
+      'billing.modules.not_included',
+    )
+  }
   if (enabled && manifest) {
     for (const dep of manifest.dependsOn)
       if (!(await isEnabled(kernel, workspaceId, dep)))

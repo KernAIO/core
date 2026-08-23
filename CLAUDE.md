@@ -102,3 +102,17 @@ and a reference UI at `/api/docs`.
 - Tests boot the real service against a scratch database (`src/testing/harness.ts`) and drive the module
   router through an oRPC server-side client, so middleware runs exactly as it does over HTTP.
   `pnpm typecheck` uses `tsconfig.test.json` (tests included); `pnpm build` excludes them.
+- **A partial unique index needs `targetWhere` on every upsert that aims at it.** `dashboard_layouts`
+  makes `user_id is null` mean "the layout the workspace hands out", which a plain unique index
+  cannot enforce — Postgres treats every NULL as distinct, so the workspace row could be inserted
+  any number of times. The two partial indexes are hand-written in the migration (drizzle-kit emits
+  neither form), and `onConflictDoUpdate` has to repeat the predicate or Postgres cannot tell which
+  index the insert arbitrates against.
+- **Not every write deserves a realtime message.** `dashboard.save` deliberately emits nothing: one
+  person moving a card on their own home page must not invalidate every other member's dashboard.
+  Only the workspace-wide writes announce themselves, because only those change what somebody else
+  sees.
+- **`/api/docs` is the only HTML this service serves, and it loads Scalar from a CDN.** The API's
+  content policy is `default-src 'none'` — right for JSON, and fatal for that page — so the docs
+  route sets its own looser header rather than the whole service loosening for one developer-facing
+  page. Anything else here that starts returning HTML has to do the same.

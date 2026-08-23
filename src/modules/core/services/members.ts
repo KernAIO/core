@@ -16,6 +16,31 @@ import {
   requireUser,
 } from './common.js'
 
+/**
+ * Members a plan is charged for.
+ *
+ * Guests do not count. A guest is invited to look at one project or one channel, and making that cost
+ * a seat would price a workspace out of the collaboration guests exist for. Suspended memberships do
+ * not count either — somebody who cannot sign in is not occupying anything.
+ *
+ * This is the definition of a seat for the whole platform: the entitlement check before an invite and
+ * the counter a billing module keeps must both come from here, or an instance will refuse an invite
+ * for a limit its own invoice disagrees with.
+ */
+export async function billableSeats(kernel: Ctx['kernel'], workspaceId: string): Promise<number> {
+  const [row] = await kernel.database.db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(memberships)
+    .where(
+      and(
+        eq(memberships.workspaceId, workspaceId),
+        eq(memberships.status, 'active'),
+        sql`${memberships.role} <> 'guest'`,
+      ),
+    )
+  return row?.n ?? 0
+}
+
 export async function list(
   ctx: Ctx,
   input: { workspaceId: string; q?: string; status?: string; cursor?: string; limit: number },

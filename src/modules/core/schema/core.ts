@@ -27,6 +27,18 @@ const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' 
 const id = () => uuid('id').primaryKey().default(sql`uuidv7()`)
 const tsvector = customType<{ data: string }>({ dataType: () => 'tsvector' })
 
+/** One placed card, as stored. Mirrors `DashboardItem` in `@kernhq/contracts`. */
+export interface DashboardItemRow {
+  i: string
+  widget: string
+  x: number
+  y: number
+  w: number
+  h: number
+  size: 's' | 'm' | 'l' | 'xl'
+  settings: Record<string, string | number | boolean | null>
+}
+
 // ---------- workspaces & membership (global) ----------
 export const workspaces = coreSchema.table(
   'workspaces',
@@ -206,6 +218,50 @@ export const integrations = coreSchema.table(
   (t) => [uniqueIndex('integrations_ws_kind_uq').on(t.workspaceId, t.kind)],
 )
 
+// ---------- dashboard (tenant) ----------
+
+/**
+ * A dashboard layout: one row per person per surface, plus one row per surface with a null
+ * `user_id` holding what the workspace hands out.
+ *
+ * `items` is jsonb, which the database does not lay out, so every read runs it through the grid's
+ * `normalise()` before it reaches a screen — a row written by an older app version, or by hand, must
+ * not be able to draw two widgets on top of each other.
+ */
+export const dashboardLayouts = coreSchema.table(
+  'dashboard_layouts',
+  {
+    id: id(),
+    workspaceId: uuid('workspace_id').notNull(),
+    /** null = the layout the workspace hands out */
+    userId: uuid('user_id'),
+    surface: text('surface').notNull().default('home'),
+    items: jsonb('items').$type<DashboardItemRow[]>().notNull().default(sql`'[]'::jsonb`),
+    /** which preset this layout was seeded from, for "reset" to say what it returns to */
+    presetId: text('preset_id'),
+    updatedBy: uuid('updated_by'),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  // The two unique indexes are partial and hand-written in the migration: a plain unique index
+  // treats every NULL as distinct, so the workspace row could be inserted any number of times.
+  (t) => [index('dashboard_layouts_ws_user_idx').on(t.workspaceId, t.userId)],
+)
+
+/** One row per workspace per surface: how much of the layout the workspace decides. */
+export const dashboardSettings = coreSchema.table(
+  'dashboard_settings',
+  {
+    workspaceId: uuid('workspace_id').notNull(),
+    surface: text('surface').notNull().default('home'),
+    /** 'locked' | 'default' | 'open' */
+    policy: text('policy').notNull().default('default'),
+    defaultPresetId: text('default_preset_id').notNull().default('my-work'),
+    updatedBy: uuid('updated_by'),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.surface] })],
+)
+
 // ---------- notifications (global, per user) ----------
 export const notifications = coreSchema.table(
   'notifications',
@@ -359,4 +415,6 @@ export const RLS_TABLES = [
   'integrations',
   'activity_events',
   'search_documents',
+  'dashboard_layouts',
+  'dashboard_settings',
 ] as const

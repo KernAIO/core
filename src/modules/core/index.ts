@@ -14,6 +14,7 @@ import {
   defineServerModule,
   KernError,
   type Kernel,
+  packageVersion,
   type ServerModule,
 } from '@kernhq/kernel'
 import { z } from 'zod'
@@ -29,9 +30,11 @@ import * as modules from './services/modules.js'
 import * as notifications from './services/notifications.js'
 import * as roles from './services/roles.js'
 import * as search from './services/search.js'
+import * as updates from './services/updates.js'
 import * as users from './services/users.js'
+import * as workspaces from './services/workspaces.js'
 
-export const CORE_VERSION = '0.1.0'
+export const CORE_VERSION = packageVersion(import.meta.url)
 
 /** DB-backed permission store handed to `createKernel({ authzStore })` (other services resolve these over the broker). */
 export const createAuthzStore = (kernel: Kernel): AuthzStore => ({
@@ -133,6 +136,32 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
           const sent = await notifications.runDigest(sysCtx(kernel, kernel.system), deps)
           if (sent) kernel.log.info({ sent }, 'notification digests sent')
         },
+      },
+      {
+        // Six-hourly, on a minute nobody else uses: a release is not urgent, and every instance
+        // asking on the hour would be a thundering herd against one static file.
+        name: 'updates.check',
+        cron: '17 */6 * * *',
+        handler: async (_input, { kernel }) => {
+          const found = await updates.runScheduledCheck(kernel)
+          if (!found) return
+          kernel.log.info({ version: found.release.version }, 'newer Kern release available')
+          for (const userId of found.adminIds)
+            await notifications.createNotification(sysCtx(kernel, kernel.system), deps, {
+              userId: userId as never,
+              workspaceId: null,
+              module: MODULE_ID,
+              type: 'core.system',
+              title: `Kern ${found.release.version} is available`,
+              body: 'Open Admin → Updates to see what it changes and how to apply it.',
+              url: '/admin/updates',
+              object: null,
+              actorId: null,
+              data: { version: found.release.version },
+              groupKey: `updates:${found.release.version}`,
+            })
+        },
+        options: { singletonKey: 'updates.check' },
       },
       {
         name: 'invitations.expire',
@@ -247,6 +276,49 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
         input: z.object({ workspaceId: z.uuid(), moduleId: z.string() }),
         output: z.boolean(),
         handler: async (input, { kernel }) => modules.isEnabled(kernel, input.workspaceId, input.moduleId),
+      },
+      /**
+       * Identity for workspaces another module holds only ids for — a billing module listing every
+       * workspace on the instance, for one. Deliberately thin: an id, a name and a slug, never
+       * membership or settings.
+       */
+      'workspaces.list': {
+        input: z.object({
+          q: z.string().optional(),
+          limit: z.number().int().min(1).max(10_000).default(200),
+        }),
+        handler: async (input, { kernel, principal }) => {
+          requireService(principal)
+          return workspaces.listAll(kernel, input)
+        },
+      },
+      /**
+       * How many members a plan is charged for. Split from `workspaces.usage` because it is asked on
+       * every membership change, while the byte count behind `usage` is a sum over a whole file table
+       * and belongs in a nightly pass.
+       */
+      'workspaces.seats': {
+        input: z.object({ workspaceId: z.uuid() }),
+        output: z.object({ seats: z.number().int().nonnegative() }),
+        handler: async (input, { kernel, principal }) => {
+          requireService(principal)
+          return { seats: await members.billableSeats(kernel, input.workspaceId) }
+        },
+      },
+      /** The authoritative recount, for whatever keeps counters and needs to prove them right. */
+      'workspaces.usage': {
+        input: z.object({ workspaceId: z.uuid() }),
+        output: z.object({
+          seats: z.number().int().nonnegative(),
+          storageBytes: z.number().int().nonnegative(),
+        }),
+        handler: async (input, { kernel, principal }) => {
+          requireService(principal)
+          return {
+            seats: await members.billableSeats(kernel, input.workspaceId),
+            storageBytes: await filesSvc.currentStorageBytes(kernel, input.workspaceId),
+          }
+        },
       },
       'notifications.create': {
         input: CreateNotification,

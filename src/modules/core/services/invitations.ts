@@ -9,6 +9,7 @@ import type { CoreDeps } from '../deps.js'
 import { serInvitation, serWorkspace } from '../lib/ser.js'
 import { invitations, memberships, user, workspaces } from '../schema/index.js'
 import { type Ctx, callerRole, permissionsChanged, ROLE_RANK, requireUser } from './common.js'
+import { billableSeats } from './members.js'
 import { createNotification } from './notifications.js'
 import { requireWorkspace } from './workspaces.js'
 
@@ -77,6 +78,21 @@ export async function create(
         )
     ).map((m) => m.userId),
   )
+  // Seats, before any invite is written.
+  //
+  // Counted as members + everyone this call would add who is not one yet, so inviting three people
+  // into a two-seat workspace fails here rather than letting two of them in and leaving the third
+  // with a link that dies on acceptance. Guests are free and so are not counted.
+  const billableInvites = targets.filter(
+    (t) => t.invite.role !== 'guest' && !(t.userId && memberIds.has(t.userId)),
+  ).length
+  if (billableInvites > 0)
+    await kernel.entitlements.require(
+      input.workspaceId,
+      'seats',
+      (await billableSeats(kernel, input.workspaceId)) + billableInvites,
+    )
+
   // revoke previous pending invites for the same emails
   await db
     .update(invitations)
@@ -219,6 +235,11 @@ export async function accept(ctx: Ctx, token: string): Promise<core.Workspace> {
     .from(memberships)
     .where(and(eq(memberships.workspaceId, w.id), eq(memberships.userId, userId)))
     .limit(1)
+  // Checked again here, and not only when the invite was issued: an invitation is valid for two
+  // weeks, and the workspace may have filled up or dropped to a smaller plan in between. Somebody
+  // rejoining an existing membership does not take a new seat.
+  if (i.role !== 'guest' && !existing.length)
+    await kernel.entitlements.require(w.id, 'seats', (await billableSeats(kernel, w.id)) + 1)
   if (existing.length) {
     await db
       .update(memberships)

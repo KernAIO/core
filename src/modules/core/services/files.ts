@@ -1,7 +1,7 @@
 import type { core } from '@kernhq/contracts'
 import { coreEvents } from '@kernhq/contracts/core'
 import { KernError, type Kernel, uuidv7 } from '@kernhq/kernel'
-import { eq } from 'drizzle-orm'
+import { and, eq, ne, sql } from 'drizzle-orm'
 import type { z } from 'zod'
 import type { CoreDeps } from '../deps.js'
 import { serFile } from '../lib/ser.js'
@@ -16,6 +16,21 @@ const THUMBNAIL_MIME = /^image\/(jpeg|png|webp|gif|avif|tiff|svg\+xml)$/
 export async function getFileRow(kernel: Kernel, id: string) {
   const [f] = await kernel.database.db.select().from(files).where(eq(files.id, id)).limit(1)
   return f ?? null
+}
+
+/**
+ * Bytes a workspace is holding right now, counting what is still uploading.
+ *
+ * Pending files count on purpose: a ticket that has been issued but not yet PUT is space the
+ * workspace has already claimed, and ignoring it lets somebody take a hundred tickets at once and
+ * walk straight past their limit.
+ */
+export async function currentStorageBytes(kernel: Kernel, workspaceId: string): Promise<number> {
+  const [row] = await kernel.database.db
+    .select({ total: sql<string>`coalesce(sum(${files.size}), 0)` })
+    .from(files)
+    .where(and(eq(files.workspaceId, workspaceId), ne(files.status, 'deleted')))
+  return Number(row?.total ?? 0)
 }
 
 /** files are addressed by id without a workspace in the URL – membership is enforced here */
@@ -46,6 +61,14 @@ export async function createUpload(
     throw KernError.badRequest('File is too large for a single upload', {
       maxBytes: deps.env.UPLOAD_MAX_PUT_BYTES,
     })
+  // Checked before the ticket is issued, not after the bytes arrive: a presigned PUT goes straight to
+  // object storage, so this is the last moment the platform is still in the conversation.
+  // Unlimited on any instance where nothing is billing, which is every self-hosted one.
+  await kernel.entitlements.require(
+    input.workspaceId,
+    'storageBytes',
+    (await currentStorageBytes(kernel, input.workspaceId)) + input.size,
+  )
   const id = uuidv7()
   const key = kernel.storage.keyFor({
     workspaceId: input.workspaceId,
@@ -108,7 +131,7 @@ export async function complete(ctx: Ctx, id: string): Promise<core.FileObject> {
       .catch((err: Error) => kernel.log.warn({ err: err.message }, 'thumbnail enqueue failed'))
   await kernel.emit(
     coreEvents.fileReady,
-    { fileId: id, workspaceId: row.workspaceId as never, mimeType: row.mimeType },
+    { fileId: id, workspaceId: row.workspaceId as never, mimeType: row.mimeType, size: row.size },
     { workspaceId: row.workspaceId, actorId: ctx.principal.userId },
   )
   await kernel.realtime.change(row.workspaceId, {
@@ -158,6 +181,11 @@ export async function remove(ctx: Ctx, id: string): Promise<void> {
     .where(eq(files.id, id))
   await kernel.storage.delete(f.key).catch(() => {})
   if (f.thumbnailKey) await kernel.storage.delete(f.thumbnailKey).catch(() => {})
+  await kernel.emit(
+    coreEvents.fileDeleted,
+    { fileId: id, workspaceId: f.workspaceId as never, size: f.size },
+    { workspaceId: f.workspaceId, actorId: ctx.principal.userId },
+  )
   await kernel.realtime.change(f.workspaceId, { module: 'core', entity: 'file', id, op: 'deleted' })
 }
 
