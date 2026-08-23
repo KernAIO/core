@@ -2,6 +2,12 @@
 
 **Who people are, which workspaces they belong to, and what they are allowed to do.**
 
+[![CI](https://img.shields.io/github/actions/workflow/status/KernAIO/core/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/KernAIO/core/actions/workflows/ci.yml)
+[![Licence](https://img.shields.io/badge/licence-AGPL--3.0-blue?style=flat-square)](LICENSE)
+[![Status](https://img.shields.io/badge/status-pre--1.0-orange?style=flat-square)](https://github.com/KernAIO/kern#what-works-today)
+[![Last commit](https://img.shields.io/github/last-commit/KernAIO/core?style=flat-square)](https://github.com/KernAIO/core/commits/main)
+[![Website](https://img.shields.io/badge/kernaio.com-1f2328?style=flat-square)](https://kernaio.com)
+
 Every other part of [Kern](https://github.com/KernAIO/kern) asks this service those questions. It
 also holds the things that do not belong to any one feature: your notification inbox, uploaded
 files, search across everything, and the audit log.
@@ -86,4 +92,7 @@ Every module this service hosts adds its own `/api/<module>` prefix and its own 
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md). Licence: [AGPL-3.0](LICENSE).
 
-Website: [kernaio.com](https://kernaio.com).
+---
+
+**Kern** — one place for your team's work: issues, conversations, documents and people.
+Open source, self-hosted. [kernaio.com](https://kernaio.com) · [github.com/KernAIO](https://github.com/KernAIO)
