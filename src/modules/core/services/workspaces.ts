@@ -16,6 +16,14 @@ import {
 } from './common.js'
 import { workspaceSummaries } from './users.js'
 
+/**
+ * Slugs a workspace may not take.
+ *
+ * A workspace lives at `/<slug>`, and the app puts a handful of its own pages at that same level —
+ * `/sign-in`, `/workspaces`, `/onboarding` and the rest. SvelteKit prefers the static route, so a
+ * workspace called "workspaces" would exist and simply never open. Every top-level route in
+ * `repos/app/src/routes` belongs here; add the name in the commit that adds the route.
+ */
 export const RESERVED_SLUGS = new Set([
   'api',
   'admin',
@@ -31,6 +39,15 @@ export const RESERVED_SLUGS = new Set([
   'static',
   '_',
   'ws',
+  // top-level pages in the app
+  'sign-in',
+  'sign-up',
+  'forgot',
+  'reset',
+  'two-factor',
+  'onboarding',
+  'workspaces',
+  'request',
 ])
 export const SlugInput = z
   .string()
