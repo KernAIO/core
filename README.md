@@ -94,7 +94,13 @@ Every module this service hosts adds its own `/api/<module>` prefix and its own 
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md). Licence: [AGPL-3.0](LICENSE).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md).
+
+## Licence
+
+[AGPL-3.0-only](LICENSE). This repository is part of the Kern product.
+The Kern framework you build modules against is Apache-2.0 — see
+[LICENSING.md](https://github.com/KernAIO/kern/blob/main/LICENSING.md).
 
 ---
 
