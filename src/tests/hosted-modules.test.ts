@@ -49,6 +49,57 @@ describe('hosted feature modules', () => {
     expect(core.kernel.registry.get('tracker')?.router).toBeTypeOf('function')
   })
 
+  it('registers hr, so /api/hr is served by this service', () => {
+    const hosted = core.kernel.manifests().map((m) => m.id)
+    expect(hosted).toContain('hr')
+    expect(core.kernel.registry.get('hr')?.router).toBeTypeOf('function')
+  })
+
+  it('applied the hr migrations into its own schema', async () => {
+    const { rows } = await core.kernel.database.db.execute<{ count: number }>(
+      // biome-ignore lint/style/noUnusedTemplateLiteral: drizzle needs a tagged template
+      (await import('drizzle-orm'))
+        .sql`select count(*)::int as count from information_schema.tables where table_schema = 'mod_hr'`,
+    )
+    expect(rows[0]?.count ?? 0).toBeGreaterThan(10)
+  })
+
+  /**
+   * The manifest is what an administrator's switchboard is built from. A module can declare
+   * capabilities perfectly and still have them invisible if the manifest does not carry them
+   * across the service boundary — which is a different failure from the module being absent.
+   */
+  it('carries hr capabilities through to the manifest', () => {
+    const hr = core.kernel.manifests().find((m) => m.id === 'hr')
+    const ids = (hr?.capabilities ?? []).map((c) => c.id)
+    expect(ids).toContain('core')
+    expect(ids).toContain('offices')
+    expect(ids).toContain('calendars')
+    // `core` is the module's foundation and must not be offered as a switch.
+    expect(hr?.capabilities.find((c) => c.id === 'core')?.required).toBe(true)
+  })
+
+  it('serves a hosted hr procedure, and creates the default office on enable', async () => {
+    type HrApi = {
+      offices: {
+        resolveFor(i: Record<string, unknown>): Promise<{ timezone: string; primaryOfficeId: string | null }>
+      }
+      people: {
+        create(i: Record<string, unknown>): Promise<{ id: string; displayName: string }>
+      }
+    }
+    const hr = core.moduleApi('hr', await owner.principal()) as HrApi
+
+    const person = await hr.people.create({ workspaceId, displayName: 'Ayşe Yılmaz' })
+    expect(person.displayName).toBe('Ayşe Yılmaz')
+
+    // Enabling HR built one office from the workspace country, and the new person landed in it —
+    // so the resolution ladder has a rung even though nobody has heard the word "office".
+    const resolved = await hr.offices.resolveFor({ workspaceId, personId: person.id })
+    expect(resolved.primaryOfficeId).not.toBeNull()
+    expect(resolved.timezone).not.toBe('UTC')
+  })
+
   it('applied the tracker migrations into its own schema', async () => {
     const { rows } = await core.kernel.database.db.execute<{ count: number }>(
       // biome-ignore lint/style/noUnusedTemplateLiteral: drizzle needs a tagged template
