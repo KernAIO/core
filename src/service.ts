@@ -1,5 +1,6 @@
 import { createHttpServer, createKernel, type Kernel } from '@kernhq/kernel'
 import { billingModule } from '@kernhq/module-billing/server'
+import { quireModule } from '@kernhq/module-quire/server'
 import { trackerModule } from '@kernhq/module-tracker/server'
 import type { FastifyInstance } from 'fastify'
 import { createAuth } from './auth/auth.js'
@@ -32,7 +33,7 @@ export interface CoreService {
  * Each brings its own Postgres schema, migrations, router at `/api/<id>`, jobs and permissions, and
  * a workspace can switch it off — so hosting one here is not the same as forcing it on anyone.
  */
-export const featureModules = [trackerModule, billingModule]
+export const featureModules = [trackerModule, quireModule, billingModule]
 
 /**
  * Boots the core service: kernel (DB, events, jobs, authz) + Better Auth + the core module,
