@@ -1,6 +1,6 @@
-import type { ModuleManifest, WorkspaceModuleState } from '@kernhq/contracts'
+import { type ModuleManifest, resolveCapabilities, type WorkspaceModuleState } from '@kernhq/contracts'
 import { coreEvents } from '@kernhq/contracts/core'
-import { KernError, type Kernel, SECRET_FIELD_NAMES } from '@kernhq/kernel'
+import { CAPABILITIES_KEY, KernError, type Kernel, SECRET_FIELD_NAMES } from '@kernhq/kernel'
 import { and, eq } from 'drizzle-orm'
 import { integrations, workspaceModules } from '../schema/index.js'
 import type { Ctx } from './common.js'
@@ -12,10 +12,46 @@ const stubManifest = (id: string): ModuleManifest => ({
   core: false,
   dependsOn: [],
   permissions: [],
+  // Empty because core genuinely does not know: this module is hosted by another service, and its
+  // capability definitions live there. Not a placeholder — an honest "no information".
+  capabilities: [],
   events: [],
   objectTypes: [],
   defaultHost: 'unknown',
 })
+
+/**
+ * The capability ids on for a workspace, from the settings blob this service already has.
+ *
+ * Resolved here rather than through `kernel.capabilities()` for two reasons: that would be a broker
+ * round trip back into core for every module on every call, and the settings row is already in hand.
+ * It is the same `resolveCapabilities` the server enforcement uses, so the two cannot drift.
+ */
+function enabledCapabilities(
+  kernel: Kernel,
+  moduleId: string,
+  settings: Record<string, unknown> | null | undefined,
+): string[] {
+  const stored = settings?.[CAPABILITIES_KEY]
+  const flags = typeof stored === 'object' && stored !== null ? (stored as Record<string, boolean>) : null
+  const defs = kernel.registry.capabilities(moduleId)
+  if (defs.length) return [...resolveCapabilities(defs, flags)]
+  /**
+   * A module hosted by another service. Core cannot apply the dependency closure without its
+   * definitions, so the stored flags are passed through as they are.
+   *
+   * Deliberately not `[]`: that would hide every capability-gated screen of a module the workspace
+   * has actually switched on, silently and completely. Passing the flags through can only be wrong
+   * in the narrow case where an administrator enabled something whose dependency is off — and the
+   * hosting service's `requiresCapability` refuses that anyway, since it holds the definitions.
+   * Core stops being the authority here; it is only relaying what was stored.
+   */
+  return flags
+    ? Object.entries(flags)
+        .filter(([, on]) => on)
+        .map(([id]) => id)
+    : []
+}
 
 async function stateRows(kernel: Kernel, workspaceId: string) {
   return kernel.database.withWorkspace(workspaceId, (tx) =>
@@ -38,6 +74,7 @@ export async function list(ctx: Ctx, workspaceId: string) {
         enabled: manifest.core ? true : (s?.enabled ?? true),
         settings: s?.settings ?? {},
         installedVersion: s?.installedVersion ?? manifest.version,
+        capabilities: enabledCapabilities(kernel, manifest.id, s?.settings),
       },
     }
   })
@@ -51,6 +88,7 @@ export async function list(ctx: Ctx, workspaceId: string) {
           enabled: r.enabled,
           settings: r.settings,
           installedVersion: r.installedVersion,
+          capabilities: enabledCapabilities(kernel, r.moduleId, r.settings),
         },
       })
   return out
@@ -133,7 +171,13 @@ export async function setEnabled(ctx: Ctx, workspaceId: string, moduleId: string
     op: 'updated',
     patch: { moduleId, enabled },
   })
-  return { moduleId, enabled: row!.enabled, settings: row!.settings, installedVersion: row!.installedVersion }
+  return {
+    moduleId,
+    enabled: row!.enabled,
+    settings: row!.settings,
+    installedVersion: row!.installedVersion,
+    capabilities: enabledCapabilities(kernel, moduleId, row!.settings),
+  }
 }
 
 export async function getModuleSettings(
@@ -159,14 +203,39 @@ export async function setModuleSettings(
   actorId: string | null,
 ) {
   const mod = kernel.registry.get(moduleId)
+
+  /**
+   * Capability switches are the platform's, not the module's, and they live under a reserved key in
+   * the same blob. They have to be lifted out before the module's schema sees them.
+   *
+   * A zod object strips unknown keys by default, so parsing the blob whole **deletes every
+   * capability flag** — quietly, on any settings write, leaving the workspace back on defaults and
+   * a screen it had switched off suddenly present again. Splitting here is what makes "reserved"
+   * actually true rather than a naming convention.
+   */
+  const { [CAPABILITIES_KEY]: incomingCapabilities, ...moduleSettings } = settings
+  const existing = await kernel.database.withWorkspace(workspaceId, (tx) =>
+    tx
+      .select({ settings: workspaceModules.settings })
+      .from(workspaceModules)
+      .where(and(eq(workspaceModules.workspaceId, workspaceId), eq(workspaceModules.moduleId, moduleId)))
+      .limit(1),
+  )
+  const storedCapabilities = existing[0]?.settings?.[CAPABILITIES_KEY]
+
   // validate against the module's zod settings schema when hosted here (remote modules: JSON schema TODO – ajv)
-  let value = settings
+  let value: Record<string, unknown> = moduleSettings
   if (mod?.definition.settings) {
-    const parsed = mod.definition.settings.safeParse(settings)
+    const parsed = mod.definition.settings.safeParse(moduleSettings)
     if (!parsed.success)
       throw KernError.badRequest('Invalid module settings', { issues: parsed.error.issues })
     value = parsed.data as Record<string, unknown>
   }
+
+  // The caller's switches win when supplied; otherwise what was already stored is carried forward,
+  // so an unrelated settings edit cannot turn a workspace's features off as a side effect.
+  const capabilities = incomingCapabilities ?? storedCapabilities
+  if (capabilities !== undefined) value = { ...value, [CAPABILITIES_KEY]: capabilities }
   const [row] = await kernel.database.withWorkspace(workspaceId, (tx) =>
     tx
       .insert(workspaceModules)
