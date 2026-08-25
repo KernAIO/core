@@ -42,7 +42,7 @@ export const DEFAULT_FEED_URL = 'https://github.com/KernAIO/kern/releases/latest
  * Ed25519 public key (SPKI, base64) the release workflow signs the feed with. An instance that
  * publishes its own feed points `KERN_UPDATE_FEED_KEY` at its own key instead.
  */
-const DEFAULT_FEED_PUBLIC_KEY = ''
+const DEFAULT_FEED_PUBLIC_KEY = 'MCowBQYDK2VwAyEAfDg+pS7N//DcMo9Q1Nba0a0vBwkMI2APRC6IkBQ4MIY='
 
 /** What the feed URL actually serves: exact signed bytes, plus the signature over those bytes. */
 interface SignedDocument {
