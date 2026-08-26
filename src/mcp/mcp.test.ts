@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { startCore, type TestCore, type TestUser } from '../testing/harness.js'
 import { pkceChallenge } from './oauth.js'
