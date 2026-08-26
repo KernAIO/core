@@ -34,7 +34,7 @@
     "@kernhq/contracts": "^0.5.1",
     "@kernhq/kernel": "^0.7.0",
     "@kernhq/module-billing": "^0.3.1",
-    "@kernhq/module-hr": "^0.9.1",
+    "@kernhq/module-hr": "^0.10.0",
     "@kernhq/module-quire": "^0.7.1",
     "@kernhq/module-tracker": "^0.11.1",
     "@orpc/contract": "^1.15.0",
