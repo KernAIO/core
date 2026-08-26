@@ -213,7 +213,7 @@ export async function setModuleSettings(
    * a screen it had switched off suddenly present again. Splitting here is what makes "reserved"
    * actually true rather than a naming convention.
    */
-  const { [CAPABILITIES_KEY]: incomingCapabilities, ...moduleSettings } = settings
+  const { [CAPABILITIES_KEY]: incomingCapabilities, ...incoming } = settings
   const existing = await kernel.database.withWorkspace(workspaceId, (tx) =>
     tx
       .select({ settings: workspaceModules.settings })
@@ -221,7 +221,32 @@ export async function setModuleSettings(
       .where(and(eq(workspaceModules.workspaceId, workspaceId), eq(workspaceModules.moduleId, moduleId)))
       .limit(1),
   )
-  const storedCapabilities = existing[0]?.settings?.[CAPABILITIES_KEY]
+  const { [CAPABILITIES_KEY]: storedCapabilities, ...storedSettings } = existing[0]?.settings ?? {}
+
+  /**
+   * A write is a patch over what is stored, not a replacement of it.
+   *
+   * The same courtesy the capability key already gets, owed in the other direction. A caller that
+   * sends only `$capabilities` has an empty remainder, and a zod object full of defaults turns `{}`
+   * into every default — so flipping a switch on the capabilities screen used to write HR's whole
+   * settings blob back to factory values. The visible damage was `employeeNumberNext` rewinding to
+   * 1 and the next hires being issued numbers that already belonged to somebody, from a screen that
+   * never mentions employee numbers.
+   *
+   * Shallow, on purpose. A nested value is one thing the module owns whole (`triage: { … }`), and a
+   * deep merge would make every nested key immortal — the trap this fix is avoiding, one level down.
+   *
+   * **A caller clears a key by sending it as `null`**, which removes it and lets the schema's
+   * default take back over; omitting it means "I have nothing to say about this", which is the only
+   * reading that makes a partial write safe. JSON has no other way to spell "forget this", so a
+   * module that genuinely wants a stored `null` cannot have one — a nullable field with no default
+   * would fail this parse loudly rather than corrupt anything, and none exists today.
+   */
+  const moduleSettings: Record<string, unknown> = { ...storedSettings }
+  for (const [key, v] of Object.entries(incoming)) {
+    if (v === null) delete moduleSettings[key]
+    else moduleSettings[key] = v
+  }
 
   // validate against the module's zod settings schema when hosted here (remote modules: JSON schema TODO – ajv)
   let value: Record<string, unknown> = moduleSettings

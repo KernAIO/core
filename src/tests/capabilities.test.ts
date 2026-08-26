@@ -108,3 +108,79 @@ describe('a settings write does not destroy the capability switches', () => {
     expect((back.settings as Record<string, unknown>).$capabilities).toEqual({ reports: false })
   })
 })
+
+/**
+ * The other half of the same trade: a write that carries only the reserved key.
+ *
+ * The switchboard screen sends `{ $capabilities: … }` and nothing else, because that is all it knows
+ * about. Core lifted the key out and handed the remainder — `{}` — to the module's zod schema, which
+ * happily turned it into every default and stored that as the whole blob. So flipping one switch
+ * rewound HR's employee-number counter to 1 and started issuing numbers that already belonged to
+ * somebody, on a screen that never mentions employee numbers.
+ *
+ * HR rather than the tracker here: it is the module with a real settings schema, and a schema full
+ * of defaults is exactly what makes the damage silent.
+ */
+const HR = 'hr'
+
+async function hrSettings(): Promise<Record<string, unknown>> {
+  const modules = await api.workspaces.modules.list({ workspaceId })
+  const hr = modules.find((m) => m.manifest.id === HR)
+  expect(hr, `${HR} is hosted by this service`).toBeDefined()
+  return hr!.state.settings as Record<string, unknown>
+}
+
+describe('a settings write is a patch, not a replacement', () => {
+  it('leaves the employee-number counter alone when a capability is toggled', async () => {
+    await api.workspaces.modules.updateSettings({
+      workspaceId,
+      moduleId: HR,
+      settings: {
+        country: 'DE',
+        employeeNumberPrefix: 'K-',
+        employeeNumberNext: 42,
+        directoryVisibleToMembers: false,
+      },
+    })
+
+    await api.workspaces.modules.updateSettings({
+      workspaceId,
+      moduleId: HR,
+      settings: { $capabilities: { offices: true } },
+    })
+
+    const stored = await hrSettings()
+    expect(stored.employeeNumberNext, 'the counter did not rewind').toBe(42)
+    expect(stored.employeeNumberPrefix).toBe('K-')
+    expect(stored.country).toBe('DE')
+    expect(stored.directoryVisibleToMembers).toBe(false)
+    expect(stored.$capabilities).toEqual({ offices: true })
+  })
+
+  it('still lets a caller change one field without naming the others', async () => {
+    await api.workspaces.modules.updateSettings({
+      workspaceId,
+      moduleId: HR,
+      settings: { employeeNumberNext: 43 },
+    })
+
+    const stored = await hrSettings()
+    expect(stored.employeeNumberNext).toBe(43)
+    expect(stored.employeeNumberPrefix, 'untouched fields survive the patch').toBe('K-')
+    expect(stored.$capabilities, 'and so do the switches').toEqual({ offices: true })
+  })
+
+  it('clears a field when the caller sends it as null', async () => {
+    await api.workspaces.modules.updateSettings({
+      workspaceId,
+      moduleId: HR,
+      settings: { employeeNumberPrefix: null },
+    })
+
+    const stored = await hrSettings()
+    // Removed, so HR's schema default takes it back over — the only way a JSON payload can say
+    // "forget this", and the escape hatch that stops merging making a key immortal.
+    expect(stored.employeeNumberPrefix).toBe('')
+    expect(stored.employeeNumberNext, 'nothing else moved').toBe(43)
+  })
+})
