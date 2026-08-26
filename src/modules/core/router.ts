@@ -10,6 +10,7 @@ import * as dashboard from './services/dashboard.js'
 import * as filesSvc from './services/files.js'
 import * as groups from './services/groups.js'
 import * as invitations from './services/invitations.js'
+import * as mcp from './services/mcp.js'
 import * as members from './services/members.js'
 import * as modules from './services/modules.js'
 import * as notifications from './services/notifications.js'
@@ -29,6 +30,11 @@ export function createCoreRouter(kernel: Kernel, deps: CoreDeps) {
   const ctxOf = (context: RequestContext): Ctx => ({ kernel, principal: context.principal })
   const auth = os.use(authed)
   const scoped = os.use(workspaceScoped(MODULE_ID))
+  /** MCP endpoints only exist where the service created the runtime — every API role does. */
+  const requireOauth = (d: CoreDeps) => {
+    if (!d.mcp) throw new Error('MCP runtime is not initialised')
+    return d.mcp.oauth
+  }
 
   return os.router({
     health: os.health.handler(async () => ({
@@ -276,6 +282,36 @@ export function createCoreRouter(kernel: Kernel, deps: CoreDeps) {
     },
 
     search: scoped.search.handler(async ({ input, context }) => search.search(ctxOf(context), input)),
+
+    mcp: {
+      authorize: {
+        get: auth.mcp.authorize.get.handler(async ({ input, context }) =>
+          mcp.authorizeInfo(kernel, requireOauth(deps), context.principal, input.id),
+        ),
+        approve: auth.mcp.authorize.approve.handler(async ({ input, context }) =>
+          mcp.approve(kernel, requireOauth(deps), context.principal, {
+            requestId: input.id,
+            workspaceId: input.workspaceId,
+          }),
+        ),
+        deny: auth.mcp.authorize.deny.handler(async ({ input, context }) =>
+          mcp.deny(requireOauth(deps), context.principal, input.id),
+        ),
+      },
+      clients: {
+        list: scoped.mcp.clients.list
+          .use(requires('core.integrations.manage'))
+          .handler(async ({ input }) => mcp.listConnectedClients(kernel, input.workspaceId)),
+      },
+      tokens: {
+        list: scoped.mcp.tokens.list
+          .use(requires('core.integrations.manage'))
+          .handler(async ({ input }) => mcp.listWorkspaceTokens(kernel, input.workspaceId)),
+        revoke: auth.mcp.tokens.revoke.handler(async ({ input, context }) =>
+          mcp.revokeConnection(kernel, context.principal, input.id),
+        ),
+      },
+    },
 
     admin: {
       settings: auth.admin.settings.handler(async ({ context }) => {

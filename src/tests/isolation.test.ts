@@ -188,7 +188,18 @@ describe('row-level security under a role that cannot bypass it', () => {
     // with a `workspace_id` and no policy has to fail this, which is the only way the test is worth
     // running. The exceptions are the tables that are deliberately global — the reason for each is
     // in `migrations/0001_rls.sql` — and taking one off this list is a decision, not an oversight.
-    const GLOBAL_ON_PURPOSE = new Set(['files', 'invitations', 'memberships', 'notifications'])
+    const GLOBAL_ON_PURPOSE = new Set([
+      'files',
+      'invitations',
+      'memberships',
+      'notifications',
+      // MCP: a token or consent belongs to one user and names one workspace, but is looked up by
+      // its owner (or the client) rather than through a workspace-scoped query — the same shape as
+      // Better Auth's api_keys. Access is decided in code, in `services/mcp.ts`.
+      'mcp_codes',
+      'mcp_consents',
+      'mcp_tokens',
+    ])
 
     const { rows } = await core.kernel.database.db.execute<{
       tablename: string

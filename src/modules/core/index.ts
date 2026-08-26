@@ -1,6 +1,6 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { coreContract, Principal } from '@kernhq/contracts'
+import { coreContract, defineCapabilities, Principal } from '@kernhq/contracts'
 import {
   CreateNotification,
   coreEvents,
@@ -65,6 +65,16 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
       core: true,
       permissions: corePermissions,
       events: coreEvents,
+      capabilities: defineCapabilities([
+        {
+          id: 'mcp',
+          label: 'MCP (AI access)',
+          description:
+            'Let people connect AI clients — Claude, Cursor, an agent — and use this workspace through them',
+          defaultEnabled: false,
+          level: 2,
+        },
+      ]),
       notificationTypes: [
         {
           type: 'core.invitation.received',

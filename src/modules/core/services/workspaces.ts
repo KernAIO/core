@@ -48,6 +48,8 @@ export const RESERVED_SLUGS = new Set([
   'onboarding',
   'workspaces',
   'request',
+  // MCP consent screen: an AI client lands here from /api/mcp/oauth/authorize
+  'authorize',
 ])
 export const SlugInput = z
   .string()

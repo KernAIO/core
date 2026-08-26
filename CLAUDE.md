@@ -135,6 +135,18 @@ and a reference UI at `/api/docs`.
   person moving a card on their own home page must not invalidate every other member's dashboard.
   Only the workspace-wide writes announce themselves, because only those change what somebody else
   sees.
+- **MCP lives in `src/mcp/`, and its tools are generated, not declared.** `catalog.ts` turns every
+  hosted module's OpenAPI document into MCP tools (remote services' documents are read over HTTP);
+  a module ships no MCP code. Tool calls execute as ordinary REST requests carrying the caller's
+  access token, so permissions/capabilities have exactly one enforcement site. OAuth is in
+  `oauth.ts` (tokens stored hashed, prefix `kmt_`/`kmr_`, PKCE S256 only); the consent screen and
+  admin settings live in shell, the capability switch is `core.mcp` on the core manifest. See ADR
+  0011.
+- **`db:generate` diffs against the last *snapshot*, not the last migration.** `0003_dashboard` was
+  hand-written with no snapshot, so the next generate re-emitted every dashboard column into the new
+  file. After generating, trim the SQL to only your new statements — but keep the snapshot it wrote,
+  which describes the whole schema and makes the next generate clean. Rename the generated file to
+  something meaningful and update `meta/_journal.json`'s tag to match.
 - **`/api/docs` is the only HTML this service serves, and it loads Scalar from a CDN.** The API's
   content policy is `default-src 'none'` — right for JSON, and fatal for that page — so the docs
   route sets its own looser header rather than the whole service loosening for one developer-facing

@@ -3,6 +3,7 @@ import { type Kernel, systemPrincipal } from '@kernhq/kernel'
 import { eq } from 'drizzle-orm'
 import type { FastifyRequest } from 'fastify'
 import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
+import type { McpOauth } from '../mcp/oauth.js'
 import { memberships, user } from '../modules/core/schema/index.js'
 import type { Auth } from './auth.js'
 
@@ -26,8 +27,12 @@ export interface PrincipalResolver {
 const CACHE_TTL_MS = 30_000
 const JWKS_TTL_MS = 5 * 60_000
 
-export function createPrincipalResolver(opts: { kernel: Kernel; auth: Auth }): PrincipalResolver {
-  const { kernel, auth } = opts
+export function createPrincipalResolver(opts: {
+  kernel: Kernel
+  auth: Auth
+  mcp?: McpOauth
+}): PrincipalResolver {
+  const { kernel, auth, mcp } = opts
   const db = kernel.database.db
   const cache = new Map<string, { v: MembershipSummary[]; exp: number }>()
   let jwks: { set: ReturnType<typeof createLocalJWKSet>; exp: number } | null = null
@@ -118,7 +123,23 @@ export function createPrincipalResolver(opts: { kernel: Kernel; auth: Auth }): P
       return null
     }
   }
+  /**
+   * An MCP access token (`kmt_…`) acts for the user who consented — but only inside the one
+   * workspace the consent named. Filtering the memberships here is what enforces that boundary
+   * everywhere at once: every downstream membership check sees a principal that belongs to no other
+   * workspace, however broad the user's own roles are.
+   */
+  async function fromMcpToken(tokenValue: string): Promise<Principal | null> {
+    const token = await mcp?.verifyAccessToken(tokenValue)
+    if (!token) return null
+    const p = await fromUserId(token.userId)
+    if (p.kind === 'anonymous') return null
+    const scoped = p.memberships.filter((m) => m.workspaceId === token.workspaceId && m.status === 'active')
+    if (scoped.length === 0) return null
+    return { ...p, kind: 'user', memberships: scoped }
+  }
   async function fromToken(token: string): Promise<Principal> {
+    if (token.startsWith('kmt_')) return (await fromMcpToken(token)) ?? ANONYMOUS
     const h = new Headers({ authorization: `Bearer ${token}` })
     return (
       (await fromSession(h)) ??

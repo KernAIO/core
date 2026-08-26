@@ -1,12 +1,14 @@
 import type { Kernel } from '@kernhq/kernel'
 import type { FastifyInstance } from 'fastify'
 import { toHeaders } from './auth/principal.js'
+import { mountMcp } from './mcp/server.js'
 import type { CoreDeps } from './modules/core/deps.js'
 
-/** Extra Fastify surface of the core service: Better Auth + API reference. */
+/** Extra Fastify surface of the core service: Better Auth + API reference + MCP. */
 export async function extendHttp(app: FastifyInstance, kernel: Kernel, deps: CoreDeps): Promise<void> {
   await mountBetterAuth(app, deps)
   mountApiDocs(app, kernel)
+  mountMcp(app, kernel, deps)
 }
 
 /**

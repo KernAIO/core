@@ -10,6 +10,7 @@ import { createPrincipalResolver } from './auth/principal.js'
 import { bootstrap } from './bootstrap.js'
 import { type CoreEnv, loadCoreEnv } from './env.js'
 import { extendHttp } from './http.js'
+import { createMcpRuntime } from './mcp/server.js'
 import { type CoreDeps, createDepsRef } from './modules/core/deps.js'
 import { createAuthzStore, createCoreModule } from './modules/core/index.js'
 
@@ -59,7 +60,11 @@ export async function createCoreService(opts: CoreServiceOptions = {}): Promise<
   deps.env = env
   deps.mailer = createMailer(kernel, env)
   deps.auth = createAuth({ kernel, env, mailer: deps.mailer })
-  deps.principals = createPrincipalResolver({ kernel, auth: deps.auth })
+  // MCP tokens are one of the credentials a principal may carry, so the runtime exists on every
+  // role — the worker resolves them through the same resolver even though it never serves /mcp
+  const mcp = createMcpRuntime(kernel)
+  deps.mcp = mcp
+  deps.principals = createPrincipalResolver({ kernel, auth: deps.auth, mcp: mcp.oauth })
 
   await kernel.start()
   await bootstrap(kernel, deps)
