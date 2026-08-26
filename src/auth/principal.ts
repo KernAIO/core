@@ -4,8 +4,32 @@ import { eq } from 'drizzle-orm'
 import type { FastifyRequest } from 'fastify'
 import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
 import type { McpOauth } from '../mcp/oauth.js'
+import { MODULE_ID } from '../modules/core/schema/base.js'
 import { memberships, user } from '../modules/core/schema/index.js'
+import { audienceAllows, CAPABILITY_AUDIENCE_KEY } from '../modules/core/services/capability-audience.js'
+import { getModuleSettings } from '../modules/core/services/modules.js'
 import type { Auth } from './auth.js'
+
+const READ_METHODS = new Set(['GET', 'HEAD'])
+
+interface ApiKeyMetadata {
+  workspaceId: string
+  scope: 'read' | 'read_write'
+}
+function readApiKeyMetadata(raw: unknown): ApiKeyMetadata | null {
+  const v =
+    typeof raw === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(raw) as Record<string, unknown>
+          } catch {
+            return null
+          }
+        })()
+      : (raw as Record<string, unknown> | null)
+  if (!v || typeof v.workspaceId !== 'string') return null
+  return { workspaceId: v.workspaceId, scope: v.scope === 'read_write' ? 'read_write' : 'read' }
+}
 
 type UserRow = typeof user.$inferSelect
 type UserLike = Pick<
@@ -99,16 +123,36 @@ export function createPrincipalResolver(opts: {
       return null
     }
   }
+  /**
+   * A personal API key acts for the user who created it, in the one workspace it was created for —
+   * the same narrowing `fromMcpToken` does for an MCP connection, and for the same reason: a key
+   * granted `read` in one workspace must not turn out to be able to read (or write) a workspace it
+   * never named, however many others its owner belongs to.
+   *
+   * The capability and its audience are re-checked on every use rather than once at creation, so
+   * switching `api_keys` off — or narrowing its audience, or removing this person from an allowed
+   * group — revokes every key it governs immediately, with no separate cleanup step.
+   */
   async function fromApiKey(key: string): Promise<Principal | null> {
     try {
       const res = await auth.api.verifyApiKey({ body: { key } })
       if (!res.valid || !res.key) return null
-      const userId =
-        (res.key as { referenceId?: string; userId?: string }).referenceId ??
-        (res.key as { userId?: string }).userId
+      const raw = res.key as { referenceId?: string; userId?: string; metadata?: unknown }
+      const userId = raw.referenceId ?? raw.userId
       if (!userId) return null
+      const meta = readApiKeyMetadata(raw.metadata)
+      if (!meta) return null // a key predating this scheme, or one this resolver cannot interpret, authenticates nobody
       const p = await fromUserId(userId)
-      return p.kind === 'anonymous' ? null : { ...p, kind: 'api_key' }
+      if (p.kind === 'anonymous') return null
+      const membership = p.memberships.find(
+        (m) => m.workspaceId === meta.workspaceId && m.status === 'active',
+      )
+      if (!membership) return null
+      const caps = await kernel.capabilities(meta.workspaceId, MODULE_ID)
+      if (!caps.has('api_keys')) return null
+      const settings = await getModuleSettings(kernel, meta.workspaceId, MODULE_ID)
+      if (!audienceAllows(settings[CAPABILITY_AUDIENCE_KEY], 'api_keys', membership.groupIds)) return null
+      return { ...p, kind: 'api_key', memberships: [membership], apiKeyScope: meta.scope }
     } catch {
       return null
     }
@@ -169,20 +213,30 @@ export function createPrincipalResolver(opts: {
         return systemPrincipal(name)
       }
       const headers = toHeaders(req)
-      // 2. API key header
-      const apiKeyHeader = req.headers['x-api-key']
-      if (typeof apiKeyHeader === 'string' && apiKeyHeader)
-        return (await fromApiKey(apiKeyHeader)) ?? ANONYMOUS
-      // 3. bearer: session token (bearer plugin) → JWT → API key
-      const authz = req.headers.authorization
-      if (typeof authz === 'string' && authz.toLowerCase().startsWith('bearer ')) {
-        const token = authz.slice(7).trim()
-        if (!token) return ANONYMOUS
-        return fromToken(token)
-      }
-      // 4. cookie session
-      if (req.headers.cookie) return (await fromSession(headers)) ?? ANONYMOUS
-      return ANONYMOUS
+      const p = await (async () => {
+        // 2. API key header
+        const apiKeyHeader = req.headers['x-api-key']
+        if (typeof apiKeyHeader === 'string' && apiKeyHeader)
+          return (await fromApiKey(apiKeyHeader)) ?? ANONYMOUS
+        // 3. bearer: session token (bearer plugin) → JWT → API key
+        const authz = req.headers.authorization
+        if (typeof authz === 'string' && authz.toLowerCase().startsWith('bearer ')) {
+          const token = authz.slice(7).trim()
+          if (!token) return ANONYMOUS
+          return fromToken(token)
+        }
+        // 4. cookie session
+        if (req.headers.cookie) return (await fromSession(headers)) ?? ANONYMOUS
+        return ANONYMOUS
+      })()
+      /**
+       * A `read` key authenticates nothing for a mutating request — not "authenticated but
+       * forbidden", but the same ANONYMOUS every other bad credential produces here. The scope was
+       * the one thing this person chose when they made the key; enforcing it anywhere looser would
+       * make that choice decorative.
+       */
+      if (p.kind === 'api_key' && p.apiKeyScope === 'read' && !READ_METHODS.has(req.method)) return ANONYMOUS
+      return p
     },
   }
 }

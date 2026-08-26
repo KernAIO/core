@@ -11,6 +11,8 @@ import { KernError } from '@kernhq/kernel'
 import { and, eq } from 'drizzle-orm'
 import type { McpOauth } from '../../../mcp/oauth.js'
 import { MODULE_ID, mcpClients, mcpConsents, mcpTokens, user } from '../schema/index.js'
+import { audienceAllows, CAPABILITY_AUDIENCE_KEY } from './capability-audience.js'
+import { getModuleSettings } from './modules.js'
 
 export interface Ctx {
   kernel: Kernel
@@ -65,6 +67,10 @@ export async function approve(
   const caps = await kernel.capabilities(input.workspaceId, MODULE_ID)
   // a switched-off capability answers 404 rather than 403, like everywhere else in Kern
   if (!caps.has('mcp')) throw KernError.notFound('MCP')
+  const membership = principal.memberships.find((m) => m.workspaceId === input.workspaceId)
+  const settings = await getModuleSettings(kernel, input.workspaceId, MODULE_ID)
+  if (!audienceAllows(settings[CAPABILITY_AUDIENCE_KEY], 'mcp', membership?.groupIds ?? []))
+    throw KernError.notFound('MCP')
   return oauth.approve({
     requestId: input.requestId,
     userId: principal.userId as string,

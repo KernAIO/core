@@ -16,6 +16,8 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type { CoreDeps } from '../modules/core/deps.js'
 import { MODULE_ID } from '../modules/core/schema/base.js'
+import { audienceAllows, CAPABILITY_AUDIENCE_KEY } from '../modules/core/services/capability-audience.js'
+import { getModuleSettings } from '../modules/core/services/modules.js'
 import { bearerOf, type McpToolDef, ToolCatalog } from './catalog.js'
 import { createMcpOauth, parseScope, redirectUriAllowed } from './oauth.js'
 
@@ -245,13 +247,19 @@ export async function mountMcp(app: FastifyInstance, kernel: Kernel, deps: CoreD
       // principal of the user who consented, restricted to that workspace's membership
       // the consent named one workspace; the caller must still be an active member of it
       const full = await deps.principals.fromUserId(token.userId)
-      if (
-        full.kind === 'anonymous' ||
-        !full.memberships.some((m) => m.workspaceId === token.workspaceId && m.status === 'active')
+      const membership = full.memberships.find(
+        (m) => m.workspaceId === token.workspaceId && m.status === 'active',
       )
+      if (full.kind === 'anonymous' || !membership)
         return reply
           .status(403)
           .send({ code: 'FORBIDDEN', message: 'No active membership in the granted workspace' })
+
+      // An audience restriction is not a second on/off switch — it is the same 404 the capability
+      // switch itself gives everyone, just aimed at one person instead of the whole workspace.
+      const settings = await getModuleSettings(kernel, token.workspaceId, MODULE_ID)
+      if (!audienceAllows(settings[CAPABILITY_AUDIENCE_KEY], 'mcp', membership.groupIds))
+        return reply.status(404).send({ code: 'NOT_FOUND', message: 'Not found' })
 
       const tools = await filterTools(await rt.catalog.tools(), token.scopes, (moduleId) =>
         kernel.isModuleEnabled(token.workspaceId, moduleId),

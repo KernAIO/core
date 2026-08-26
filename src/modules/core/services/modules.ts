@@ -3,6 +3,7 @@ import { coreEvents } from '@kernhq/contracts/core'
 import { CAPABILITIES_KEY, KernError, type Kernel, SECRET_FIELD_NAMES } from '@kernhq/kernel'
 import { and, eq } from 'drizzle-orm'
 import { integrations, workspaceModules } from '../schema/index.js'
+import { CAPABILITY_AUDIENCE_KEY } from './capability-audience.js'
 import type { Ctx } from './common.js'
 
 const stubManifest = (id: string): ModuleManifest => ({
@@ -213,7 +214,11 @@ export async function setModuleSettings(
    * a screen it had switched off suddenly present again. Splitting here is what makes "reserved"
    * actually true rather than a naming convention.
    */
-  const { [CAPABILITIES_KEY]: incomingCapabilities, ...incoming } = settings
+  const {
+    [CAPABILITIES_KEY]: incomingCapabilities,
+    [CAPABILITY_AUDIENCE_KEY]: incomingAudience,
+    ...incoming
+  } = settings
   const existing = await kernel.database.withWorkspace(workspaceId, (tx) =>
     tx
       .select({ settings: workspaceModules.settings })
@@ -221,7 +226,11 @@ export async function setModuleSettings(
       .where(and(eq(workspaceModules.workspaceId, workspaceId), eq(workspaceModules.moduleId, moduleId)))
       .limit(1),
   )
-  const { [CAPABILITIES_KEY]: storedCapabilities, ...storedSettings } = existing[0]?.settings ?? {}
+  const {
+    [CAPABILITIES_KEY]: storedCapabilities,
+    [CAPABILITY_AUDIENCE_KEY]: storedAudience,
+    ...storedSettings
+  } = existing[0]?.settings ?? {}
 
   /**
    * A write is a patch over what is stored, not a replacement of it.
@@ -261,6 +270,8 @@ export async function setModuleSettings(
   // so an unrelated settings edit cannot turn a workspace's features off as a side effect.
   const capabilities = incomingCapabilities ?? storedCapabilities
   if (capabilities !== undefined) value = { ...value, [CAPABILITIES_KEY]: capabilities }
+  const audience = incomingAudience ?? storedAudience
+  if (audience !== undefined) value = { ...value, [CAPABILITY_AUDIENCE_KEY]: audience }
   const [row] = await kernel.database.withWorkspace(workspaceId, (tx) =>
     tx
       .insert(workspaceModules)

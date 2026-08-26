@@ -187,7 +187,10 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
         },
       }),
       multiSession({ maximumSessions: 10 }),
-      apiKey({ enableSessionForAPIKeys: true, apiKeyHeaders: ['x-api-key'] }),
+      // `enableMetadata` is what lets a key carry the workspace and scope it was created for —
+      // without it `createApiKey` refuses any `metadata` at all, and there would be nowhere honest
+      // to put either.
+      apiKey({ enableSessionForAPIKeys: true, apiKeyHeaders: ['x-api-key'], enableMetadata: true }),
       admin({ defaultRole: 'user', adminRoles: ['admin'] }),
       // SSO (OIDC/SAML) per workspace: providers are registered through Better Auth's /sso/register
       // endpoint. The `before` hook above refuses registration when the workspace's plan does not

@@ -5,6 +5,7 @@ import type { CoreDeps } from './deps.js'
 import { MODULE_ID } from './schema/base.js'
 import * as activity from './services/activity.js'
 import * as admin from './services/admin.js'
+import * as apiKeys from './services/apikeys.js'
 import type { Ctx } from './services/common.js'
 import * as dashboard from './services/dashboard.js'
 import * as filesSvc from './services/files.js'
@@ -311,6 +312,21 @@ export function createCoreRouter(kernel: Kernel, deps: CoreDeps) {
           mcp.revokeConnection(kernel, context.principal, input.id),
         ),
       },
+    },
+
+    apiKeys: {
+      list: auth.apiKeys.list.handler(async ({ input, context }) =>
+        apiKeys.list(kernel, context.principal, input.workspaceId),
+      ),
+      create: auth.apiKeys.create.handler(async ({ input, context }) =>
+        apiKeys.create(kernel, deps.auth, context.principal, input),
+      ),
+      revoke: auth.apiKeys.revoke.handler(async ({ input, context }) =>
+        apiKeys.revoke(kernel, context.principal, input.id),
+      ),
+      listAll: scoped.apiKeys.listAll
+        .use(requires('core.integrations.manage'))
+        .handler(async ({ input }) => apiKeys.listAll(kernel, input.workspaceId)),
     },
 
     admin: {

@@ -74,6 +74,13 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
           defaultEnabled: false,
           level: 2,
         },
+        {
+          id: 'api_keys',
+          label: 'Personal API keys',
+          description: 'Let people generate their own key for calling the API directly, outside MCP',
+          defaultEnabled: false,
+          level: 2,
+        },
       ]),
       notificationTypes: [
         {
