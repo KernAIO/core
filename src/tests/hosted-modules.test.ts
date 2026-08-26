@@ -57,7 +57,6 @@ describe('hosted feature modules', () => {
 
   it('applied the hr migrations into its own schema', async () => {
     const { rows } = await core.kernel.database.db.execute<{ count: number }>(
-      // biome-ignore lint/style/noUnusedTemplateLiteral: drizzle needs a tagged template
       (await import('drizzle-orm'))
         .sql`select count(*)::int as count from information_schema.tables where table_schema = 'mod_hr'`,
     )
@@ -102,7 +101,6 @@ describe('hosted feature modules', () => {
 
   it('applied the tracker migrations into its own schema', async () => {
     const { rows } = await core.kernel.database.db.execute<{ count: number }>(
-      // biome-ignore lint/style/noUnusedTemplateLiteral: drizzle needs a tagged template
       (await import('drizzle-orm'))
         .sql`select count(*)::int as count from information_schema.tables where table_schema = 'mod_tracker'`,
     )
@@ -135,5 +133,42 @@ describe('hosted feature modules', () => {
     const outsider = await core.signUp({ name: 'Outsider' })
     const tracker = core.moduleApi('tracker', await outsider.principal()) as TrackerApi
     await expect(tracker.projects.list({ workspaceId })).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
+
+  it('registers inventory, so /api/inventory is served by this service', () => {
+    const hosted = core.kernel.manifests().map((m) => m.id)
+    expect(hosted).toContain('inventory')
+    expect(core.kernel.registry.get('inventory')?.router).toBeTypeOf('function')
+  })
+
+  it('applied the inventory migrations into its own schema', async () => {
+    const { rows } = await core.kernel.database.db.execute<{ count: number }>(
+      (await import('drizzle-orm'))
+        .sql`select count(*)::int as count from information_schema.tables where table_schema = 'mod_inventory'`,
+    )
+    expect(rows[0]?.count ?? 0).toBeGreaterThanOrEqual(7)
+  })
+
+  it('creates an asset through the hosted router and assigns its tag', async () => {
+    type InventoryApi = {
+      assets: {
+        create(
+          input: Record<string, unknown>,
+        ): Promise<{ id: string; code: string; name: string; status: string }>
+        get(input: Record<string, unknown>): Promise<{ code: string }>
+      }
+    }
+    const inventory = core.moduleApi('inventory', await owner.principal()) as InventoryApi
+
+    const asset = await inventory.assets.create({ workspaceId, name: 'Hosted laptop' })
+    expect(asset.code).toMatch(/^INV-\d{4}$/)
+    expect(asset.status).toBe('in_stock')
+
+    const read = await inventory.assets.get({ workspaceId, assetId: asset.id })
+    expect(read.code).toBe(asset.code)
+
+    // A second asset gets the next number — the counter is per workspace.
+    const second = await inventory.assets.create({ workspaceId, name: 'Hosted phone' })
+    expect(second.code).not.toBe(asset.code)
   })
 })
