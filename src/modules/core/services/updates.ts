@@ -36,7 +36,7 @@ const ATTEMPT_KEY = 'updates.lastAttempt'
  * The newest stable release of the umbrella repository always serves this asset, so the default
  * needs no version in it and no separate hosting.
  */
-export const DEFAULT_FEED_URL = 'https://github.com/KernAIO/kern/releases/latest/download/releases.json'
+export const DEFAULT_FEED_URL = 'https://github.com/KernAIO/app/releases/latest/download/releases.json'
 
 /**
  * Ed25519 public key (SPKI, base64) the release workflow signs the feed with. An instance that

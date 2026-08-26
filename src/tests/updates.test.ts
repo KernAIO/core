@@ -25,7 +25,7 @@ const release = (over: Record<string, unknown> = {}) => ({
   version: '9.9.9',
   channel: 'stable' as const,
   publishedAt: '2026-08-22T00:00:00.000Z',
-  notesUrl: 'https://github.com/KernAIO/kern/releases/tag/v9.9.9',
+  notesUrl: 'https://github.com/KernAIO/app/releases/tag/v9.9.9',
   services: { core: '9.9.9', app: '9.9.9' },
   modules: { core: '9.9.9', tracker: '9.9.9' },
   minPreviousVersion: null,
