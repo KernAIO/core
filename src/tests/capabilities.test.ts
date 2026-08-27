@@ -139,7 +139,6 @@ describe('a settings write is a patch, not a replacement', () => {
         country: 'DE',
         employeeNumberPrefix: 'K-',
         employeeNumberNext: 42,
-        directoryVisibleToMembers: false,
       },
     })
 
@@ -153,7 +152,6 @@ describe('a settings write is a patch, not a replacement', () => {
     expect(stored.employeeNumberNext, 'the counter did not rewind').toBe(42)
     expect(stored.employeeNumberPrefix).toBe('K-')
     expect(stored.country).toBe('DE')
-    expect(stored.directoryVisibleToMembers).toBe(false)
     expect(stored.$capabilities).toEqual({ offices: true })
   })
 
