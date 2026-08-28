@@ -19,15 +19,21 @@ import {
 } from '@kernhq/kernel'
 import { z } from 'zod'
 import type { CoreDeps } from './deps.js'
+import { coreLifecycleEvents } from './events.js'
+import { coreHttpRoutes } from './http-routes.js'
 import { createCoreRouter } from './router.js'
 import { coreSchema, MODULE_ID } from './schema/base.js'
+import * as access from './services/access.js'
 import * as activity from './services/activity.js'
 import type { Ctx } from './services/common.js'
+import * as deletion from './services/deletion.js'
+import * as exportsSvc from './services/exports.js'
 import * as filesSvc from './services/files.js'
 import * as invitations from './services/invitations.js'
 import * as members from './services/members.js'
 import * as modules from './services/modules.js'
 import * as notifications from './services/notifications.js'
+import * as retention from './services/retention.js'
 import * as roles from './services/roles.js'
 import * as search from './services/search.js'
 import * as updates from './services/updates.js'
@@ -64,7 +70,9 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
       icon: 'settings',
       core: true,
       permissions: corePermissions,
-      events: coreEvents,
+      // The erasure lifecycle is core's own rather than the shared contract's: only core can publish
+      // it, and a module subscribes by name. See `events.ts`.
+      events: { ...coreEvents, ...coreLifecycleEvents },
       capabilities: defineCapabilities([
         {
           id: 'mcp',
@@ -118,12 +126,27 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
     schema: coreSchema,
     migrationsFolder: join(dirname(fileURLToPath(import.meta.url)), '../../../migrations'),
     router: (kernel) => createCoreRouter(kernel, deps),
+    /**
+     * Export and erasure. Plain HTTP rather than oRPC because `coreContract` lives in
+     * `@kernhq/contracts` and cannot carry them yet, and `admin.diagnostics` rightly fails a module
+     * that implements a procedure it never declared — see the header of `http-routes.ts` for what
+     * that costs and what is done about it.
+     */
+    httpRoutes: coreHttpRoutes(deps),
 
     subscriptions: {
       // membership/role changes → drop cached principals so new permissions apply on the next request
       'core.permissions.changed': async (e) => {
         const p = e.payload as { userIds: string[] | null }
         deps.principals?.invalidate(p.userIds)
+      },
+      /**
+       * An instance admin reached a workspace they are not a member of — here, or in chat, mail or
+       * collab, which is why this arrives as an event rather than as a local sink. Core owns the
+       * audit log, so core writes the row. See `services/access.ts`.
+       */
+      'kernel.access.crossed': async (e, kernel) => {
+        await access.recordUnscopedAccess(kernel, e.payload as access.UnscopedAccessEvent)
       },
     },
 
@@ -183,12 +206,63 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
         options: { singletonKey: 'updates.check' },
       },
       {
+        /**
+         * The `auditRetentionDays` entitlement, once a night and off the hour so it does not race
+         * every other instance's cron. Does nothing at all where nothing bills, which is every
+         * self-hosted install — see `services/retention.ts`.
+         */
+        name: 'audit.retention',
+        cron: '40 3 * * *',
+        handler: async (_input, { kernel }) => {
+          const pass = await retention.runAuditRetention(kernel)
+          if (pass.deleted) kernel.log.info(pass, 'audit retention pruned expired activity')
+        },
+        options: { singletonKey: 'audit.retention' },
+      },
+      {
         name: 'invitations.expire',
         cron: '15 * * * *',
         handler: async (_input, { kernel }) => {
           const n = await invitations.expireStale(sysCtx(kernel, kernel.system))
           if (n) kernel.log.info({ expired: n }, 'invitations expired')
         },
+      },
+      /**
+       * Building an export reads every table a workspace has, so it is a job and never a request:
+       * the workspaces most likely to need one are exactly the ones an HTTP timeout would fail on.
+       * It does not retry — a half-written artifact must not be replaced by another attempt while
+       * the first is still recorded as running; the row is marked failed and the owner asks again.
+       */
+      {
+        name: 'export.build',
+        schema: z.object({ exportId: z.uuid(), workspaceId: z.uuid() }),
+        handler: async (input, { kernel }) => {
+          await exportsSvc.build(kernel, input.exportId, input.workspaceId)
+        },
+        options: { retryLimit: 0, expireInSeconds: 3600 },
+      },
+      {
+        name: 'export.expire',
+        cron: '25 * * * *',
+        handler: async (_input, { kernel }) => {
+          const n = await exportsSvc.expireStale(kernel)
+          if (n) kernel.log.info({ expired: n }, 'stale workspace exports removed')
+        },
+        options: { singletonKey: 'export.expire' },
+      },
+      /**
+       * Erasure whose grace period has run out. Hourly rather than daily so the window is honoured
+       * to about the hour rather than to about the day — a customer told "thirty days" should not
+       * wait thirty-one.
+       */
+      {
+        name: 'deletion.run',
+        cron: '5 * * * *',
+        handler: async (_input, { kernel }) => {
+          const { purged } = await deletion.runDueDeletions(kernel)
+          if (purged) kernel.log.info({ purged }, 'scheduled erasures completed')
+        },
+        options: { singletonKey: 'deletion.run' },
       },
       {
         name: 'search.reindex',
@@ -212,20 +286,30 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
             : deps.principals.fromUserId(input.userId)
         },
       },
+      /**
+       * `workspaceId` is optional and it decides one thing: whether the answer carries email
+       * addresses. Naming a workspace restricts the result to its active members and includes the
+       * address, which is what a member may see anyway; leaving it out returns the profile without
+       * one. See `users.getMany` in `services/users.ts`.
+       */
       'users.get': {
-        input: z.object({ id: z.uuid() }),
+        input: z.object({ id: z.uuid(), workspaceId: z.uuid().optional() }),
         handler: async (input, { kernel, principal }) => {
           requireService(principal)
-          const [u] = await users.getMany(sysCtx(kernel, kernel.system), [input.id])
+          const [u] = await users.getMany(sysCtx(kernel, kernel.system), [input.id], {
+            workspaceId: input.workspaceId,
+          })
           if (!u) throw KernError.notFound('User')
           return u
         },
       },
       'users.getMany': {
-        input: z.object({ ids: z.array(z.uuid()).max(500) }),
+        input: z.object({ ids: z.array(z.uuid()).max(500), workspaceId: z.uuid().optional() }),
         handler: async (input, { kernel, principal }) => {
           requireService(principal)
-          return users.getMany(sysCtx(kernel, kernel.system), input.ids)
+          return users.getMany(sysCtx(kernel, kernel.system), input.ids, {
+            workspaceId: input.workspaceId,
+          })
         },
       },
       'authz.customRolePermissions': {

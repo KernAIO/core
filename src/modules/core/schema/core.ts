@@ -405,6 +405,77 @@ export const searchDocuments = coreSchema.table(
   ],
 )
 
+// ---------- data export (tenant) ----------
+
+/**
+ * One request to take a copy of a workspace's data away.
+ *
+ * The artifact itself is an object in storage, not a row: an export of a busy workspace is far too
+ * large for the database, and putting it in the bucket means the same presigned-URL path every other
+ * download already uses. `expiresAt` is what makes an export a copy rather than a second permanent
+ * home for the data — a stale one is deleted by the cleanup pass whether or not anybody fetched it.
+ */
+export const dataExports = coreSchema.table(
+  'data_exports',
+  {
+    id: id(),
+    workspaceId: uuid('workspace_id').notNull(),
+    requestedBy: uuid('requested_by').notNull(),
+    /** pending | running | ready | failed | expired */
+    status: text('status').notNull().default('pending'),
+    /** storage key of the artifact, once there is one */
+    key: text('key'),
+    sizeBytes: integer('size_bytes'),
+    /** modules that own data and could not contribute it — see `services/exports.ts` */
+    followUps: jsonb('follow_ups').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    error: text('error'),
+    expiresAt: ts('expires_at'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    completedAt: ts('completed_at'),
+  },
+  (t) => [index('data_exports_ws_created_idx').on(t.workspaceId, t.createdAt)],
+)
+
+// ---------- erasure (global: an account deletion belongs to no workspace) ----------
+
+/**
+ * A scheduled erasure of a workspace or an account, and the grace period in front of it.
+ *
+ * Deliberately **not** row-level secured, for the same reason `workspaces` and `memberships` are
+ * not: an account deletion has no workspace to scope to, and the purge worker has to be able to find
+ * every request that is due without knowing which tenant it belongs to first.
+ *
+ * `purgeAfter` is the whole point of the row existing. The terms promise a window in which a
+ * deletion can be undone, and a delete that happens the moment the button is pressed cannot honour
+ * that; the row is the promise, and `status` is how far through it the request is.
+ */
+export const deletionRequests = coreSchema.table(
+  'deletion_requests',
+  {
+    id: id(),
+    /** workspace | account */
+    subjectKind: text('subject_kind').notNull(),
+    /** workspace id, or user id */
+    subjectId: uuid('subject_id').notNull(),
+    requestedBy: uuid('requested_by').notNull(),
+    reason: text('reason'),
+    /** scheduled | cancelled | running | done | failed */
+    status: text('status').notNull().default('scheduled'),
+    purgeAfter: ts('purge_after').notNull(),
+    /** modules that were told to erase and could not be reached — see `services/deletion.ts` */
+    followUps: jsonb('follow_ups').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    error: text('error'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    completedAt: ts('completed_at'),
+  },
+  (t) => [
+    // Partial and hand-written in the migration: at most one request may be open for a subject, and
+    // a plain unique index would refuse the second deletion of a workspace somebody once cancelled.
+    index('deletion_requests_due_idx').on(t.status, t.purgeAfter),
+    index('deletion_requests_subject_idx').on(t.subjectKind, t.subjectId),
+  ],
+)
+
 /** tables that get RLS policies in migrations */
 export const RLS_TABLES = [
   'roles',
@@ -417,4 +488,5 @@ export const RLS_TABLES = [
   'search_documents',
   'dashboard_layouts',
   'dashboard_settings',
+  'data_exports',
 ] as const

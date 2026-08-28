@@ -17,7 +17,6 @@ let owner: TestUser
  * prevents in the test itself. */
 let freeWs: string
 let workspaceId: string
-let planId: string
 
 /** Billing's shape, narrowed to what this test uses; core does not depend on its types. */
 type BillingApi = {
@@ -60,7 +59,6 @@ async function applyPlan() {
     published: true,
     order: 10,
   })
-  planId = plan.id
   await api.admin.setPlan({ workspaceId, planId: plan.id })
 }
 

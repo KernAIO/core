@@ -151,3 +151,52 @@ and a reference UI at `/api/docs`.
   content policy is `default-src 'none'` — right for JSON, and fatal for that page — so the docs
   route sets its own looser header rather than the whole service loosening for one developer-facing
   page. Anything else here that starts returning HTML has to do the same.
+- **`0000_init.sql` was not replay-safe, and nothing here noticed for months.** Ten
+  `ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY` statements with no `DROP CONSTRAINT IF EXISTS` in
+  front of them, so a second pass over the folder threw — and because the kernel migrates every
+  hosted module at boot, that is not a degraded feature but a service that never binds :4000, taking
+  tracker, quire, hr, billing and inventory down with it. Editing *any* file in `migrations/`
+  triggers the replay, because drizzle keys applied migrations by content hash.
+  `src/tests/migrations.test.ts` is the guard: it applies the whole folder twice to a database
+  created from nothing, asserts every policy exists once, and checks the journal's timestamps rise.
+  Run it before touching migrations, not after.
+- **A user-facing procedure core cannot declare goes in `httpRoutes`, and says why.** The router is
+  `implement(coreContract)` and `coreContract` lives in `@kernhq/contracts` — another repository —
+  so a procedure added to the router alone is a *failing build*: `admin.diagnostics` walks the
+  router against the contract and `src/tests/diagnostics.test.ts` asserts nothing is undeclared.
+  That check is right and should stay. Export and erasure are therefore mounted as
+  `src/modules/core/http-routes.ts` under the same `/api/core` prefix, which is the platform's own
+  supported escape hatch — at the cost of no generated client, no OpenAPI entry, and **no
+  `workspaceScoped`**, so principal, membership and permission are all written out by hand there.
+  Moving them onto the contract is the follow-up; that file should shrink, never grow.
+- **Sign-up is gated in exactly one place, and it is not a list of routes.** Better Auth's
+  `user.validateUserInfo` runs immediately before `create-user` for every authentication method —
+  email+password, social OAuth, magic link, SSO (OIDC and SAML), email OTP, SIWE, phone and the
+  admin plugin — because all of them provision through `internalAdapter.createUser`. Gating the
+  sign-up *paths* instead means a list that falls behind the plugin set the first time somebody adds
+  a provider. Passkeys cannot create an account at all: the plugin registers a credential against a
+  session that already exists. A throw inside the hook is treated as a refusal, so the gate fails
+  closed. See `src/auth/signup.ts`.
+- **`allowSignup` is seeded once and then belongs to the administrator.** The contract's default is
+  `true`, which is right for Kern Cloud and wrong for a self-hosted instance, so `seedSignupPolicy`
+  writes the value on the boot that finds no settings row and never touches an existing one —
+  changing `KERN_SIGNUP` later does nothing. Unset means invite-only *only when the instance can
+  bootstrap an administrator*; closing an instance that has no way to create its first account
+  bricks it, and nothing in the product can recover from that.
+- **A workspace needs a verified email behind it; an invitation counts as one.** `workspaces.create`
+  refuses an unconfirmed address (`core.workspace.email_unverified`), which is a verification gate
+  and not a sign-up gate — Kern Cloud keeps sign-up open. `invitations.accept` marks the address
+  verified when `invitations.user_id` was null, and only then: that is exactly the case where the
+  token could only have arrived by email. An invitation to somebody who already has an account is
+  also delivered as an in-app notification carrying the token, so it proves nothing.
+- **Deletion asks modules; it never reaches into `mod_<id>`.** `purgeWorkspace` and `purgeAccount`
+  emit `core.workspace.purge` / `core.account.purge` and call `<module>.erase`; every module that
+  does not answer is written into the request's `follow_ups` by name. Same shape for export and
+  `<module>.export`. Nothing implements either yet, so today every module lands in the follow-up
+  list — which is the honest report, and the list somebody works through. An archive labelled
+  "export" holding only core's rows would be worse than no export at all.
+- **An account purge anonymises the user row; a workspace purge deletes.** `activity_events.actor_id`,
+  `files.uploaded_by` and every module's audit trail point at a user id, so hard-deleting the row
+  would either cascade through other tenants' history or leave references that read as corruption.
+  `status: 'deleted'` with the identifying columns emptied (and the id folded into `email`, which is
+  unique, so the address can be taken again) is what erasure means for a shared record.
