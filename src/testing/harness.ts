@@ -61,7 +61,25 @@ export interface TestCore {
    * depend on a feature module's contract types to be able to check that it is reachable.
    */
   moduleApi(moduleId: string, principal: Principal): unknown
-  signUp(input?: { email?: string; password?: string; name?: string }): Promise<TestUser>
+  signUp(input?: {
+    email?: string
+    password?: string
+    name?: string
+    /** leave the address unconfirmed (default: verified, see the implementation) */
+    verified?: boolean
+  }): Promise<TestUser>
+  /**
+   * An account provisioned **out of band**, straight into the table, without going through Better
+   * Auth's sign-up at all.
+   *
+   * This is the only way to have a first account on an instance whose sign-up is closed, which is
+   * exactly what `bootstrap()` does with `KERN_ADMIN_EMAIL` on a real invite-only install. It
+   * deliberately bypasses the sign-up gate, so it must never be used to assert that the gate lets
+   * somebody *through* — that has to go through `signUp`, or the assertion proves nothing.
+   *
+   * There is no session behind it, so the returned user has no `token`; reach its API with `apiOf`.
+   */
+  signUpDirect(input?: { email?: string; name?: string }): Promise<{ id: string; email: string }>
   /** current principal of a signed-up user, re-read from the database */
   principalOf(userId: string): Promise<Principal>
   /** a fresh client for the user's *current* principal (after a role change) */
@@ -191,6 +209,14 @@ export async function startCore(opts: StartCoreOptions = {}): Promise<TestCore> 
       const id = res.user.id
       const token = res.token ?? ''
       if (!token) throw new Error(`sign-up for ${email} returned no session token`)
+      // Verified by default, because that is the state a real person is in by the time they do
+      // anything: `emailVerification.sendOnSignUp` mails the link and `workspaces.create` requires
+      // it. A suite that is *about* the unverified state passes `verified: false` and asserts on it.
+      if (input.verified !== false)
+        await kernel.database.db
+          .update(user)
+          .set({ emailVerified: true, updatedAt: new Date() })
+          .where(eq(user.id, id))
       return {
         id,
         email,
@@ -199,6 +225,20 @@ export async function startCore(opts: StartCoreOptions = {}): Promise<TestCore> 
         api: clientFor(await principalOf(id)),
         principal: () => principalOf(id),
       }
+    },
+    async signUpDirect(input = {}) {
+      const email = (input.email ?? `direct_${unique()}@example.test`).toLowerCase()
+      const [row] = await kernel.database.db
+        .insert(user)
+        .values({
+          email,
+          name: input.name ?? email.split('@')[0]!,
+          // Provisioned by the operator, so the address is as proven as the operator's own list.
+          emailVerified: true,
+        })
+        .returning({ id: user.id })
+      if (!row) throw new Error(`could not provision ${email}`)
+      return { id: row.id, email }
     },
     async promoteToInstanceAdmin(userId) {
       await kernel.database.db

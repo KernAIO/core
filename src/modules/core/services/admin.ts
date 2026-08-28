@@ -6,7 +6,19 @@ import { serUser, serWorkspace } from '../lib/ser.js'
 import { instanceSettings, memberships, user, workspaces } from '../schema/index.js'
 import { type Ctx, ilikeEscape } from './common.js'
 
-const INSTANCE_KEY = 'instance'
+/** The one settings row holding the whole `InstanceSettings` blob. */
+export const INSTANCE_KEY = 'instance'
+
+/**
+ * Whether the instance settings row has ever been written.
+ *
+ * This is what makes "first boot" a knowable thing: `getInstanceSettings` parses defaults over an
+ * absent row and so can never tell you that, and a seed that runs on every boot would overwrite
+ * whatever an administrator later chose. See `seedSignupPolicy` in `src/auth/signup.ts`.
+ */
+export async function instanceSettingsWritten(kernel: Kernel): Promise<boolean> {
+  return (await getInstanceSetting<unknown>(kernel, INSTANCE_KEY)) !== null
+}
 
 export async function getInstanceSetting<T>(kernel: Kernel, key: string): Promise<T | null> {
   const [row] = await kernel.database.db

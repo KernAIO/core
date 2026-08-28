@@ -25,6 +25,12 @@ export const CoreEnv = z.object({
   KERN_ADMIN_EMAIL: z.string().email().optional(),
   KERN_ADMIN_PASSWORD: z.string().min(8).optional(),
   KERN_ADMIN_NAME: z.string().default('Admin'),
+  /**
+   * What `allowSignup` is seeded to on an instance's very first boot — `open` for Kern Cloud,
+   * `invite` for a self-hosted instance. Read once and never again; the admin console owns the
+   * setting from then on. See `seedSignupPolicy` in `src/auth/signup.ts` for what "unset" means.
+   */
+  KERN_SIGNUP: z.enum(['open', 'invite']).optional(),
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().optional(),

@@ -4,7 +4,7 @@ import { KernError, type Kernel } from '@kernhq/kernel'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { serWorkspace } from '../lib/ser.js'
-import { memberships, roles, workspaces } from '../schema/index.js'
+import { memberships, roles, user, workspaces } from '../schema/index.js'
 import { getInstanceSettings } from './admin.js'
 import {
   BUILTIN_ROLES,
@@ -110,6 +110,31 @@ export async function list(ctx: Ctx): Promise<core.WorkspaceSummary[]> {
   return workspaceSummaries(ctx, requireUser(ctx.principal))
 }
 
+/**
+ * A workspace needs a proven email address behind it.
+ *
+ * `requireEmailVerification` is off for sign-in on purpose — being unable to read your mail should
+ * not lock you out of an account you already have — but that left the whole tenant-creating path
+ * open to an address nobody had ever confirmed: on Kern Cloud, any string with an `@` in it got a
+ * workspace instantly, with a slug, storage and an invitation form attached to it.
+ *
+ * Verification, not registration, is the gate — Kern Cloud keeps sign-up open. An invited person is
+ * verified by their invitation (see `invitations.accept`), so this never stands between somebody and
+ * the workspace they were asked to join; it only stands in front of creating a new one. Instance
+ * admins and services pass: an operator restoring a tenant is not the case this is about.
+ */
+async function requireVerifiedEmail(ctx: Ctx): Promise<void> {
+  const p = ctx.principal
+  if (p.instanceAdmin || p.kind === 'service') return
+  const [me] = await ctx.kernel.database.db
+    .select({ emailVerified: user.emailVerified })
+    .from(user)
+    .where(eq(user.id, requireUser(p)))
+    .limit(1)
+  if (me?.emailVerified) return
+  throw KernError.forbidden('core.workspace.email_unverified')
+}
+
 export async function create(
   ctx: Ctx,
   input: { name: string; slug: string; description?: string },
@@ -120,6 +145,7 @@ export async function create(
   const settings = await getInstanceSettings(kernel)
   if (settings.allowWorkspaceCreation === 'admins' && !ctx.principal.instanceAdmin)
     throw KernError.forbidden('core.workspace.create')
+  await requireVerifiedEmail(ctx)
   const db = kernel.database.db
   const existing = await db
     .select({ id: workspaces.id })

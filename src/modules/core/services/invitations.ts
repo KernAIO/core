@@ -226,9 +226,26 @@ export async function accept(ctx: Ctx, token: string): Promise<core.Workspace> {
     throw KernError.conflict('Invitation has expired', 'core.invitation.expired')
   }
   if (w.archivedAt) throw KernError.conflict('Workspace is archived', 'core.workspace.archived')
-  const [me] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1)
+  const [me] = await db
+    .select({ email: user.email, emailVerified: user.emailVerified })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
   if (i.userId !== userId && me?.email.toLowerCase() !== i.email.toLowerCase())
     throw KernError.forbidden('core.invitation.email_mismatch')
+  /**
+   * An invitation redeemed from the email it was sent to proves the address.
+   *
+   * `i.userId` is null exactly when there was no account to notify in-app, so the token can only
+   * have arrived by mail — which is control of that mailbox, the same thing a verification link
+   * asks for, and one round trip fewer for the person joining. An invitation to somebody who
+   * already has an account is also delivered as a notification carrying the token, so it proves
+   * nothing and is deliberately not counted.
+   *
+   * This is what keeps the verified-email gate on `workspaces.create` off the invited-user path.
+   */
+  if (!i.userId && me && !me.emailVerified && me.email.toLowerCase() === i.email.toLowerCase())
+    await db.update(user).set({ emailVerified: true, updatedAt: new Date() }).where(eq(user.id, userId))
 
   const existing = await db
     .select({ id: memberships.id })

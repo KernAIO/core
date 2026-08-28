@@ -10,6 +10,7 @@ import { admin, bearer, jwt, magicLink, multiSession, twoFactor } from 'better-a
 import type { CoreEnv } from '../env.js'
 import { authSchema } from '../modules/core/schema/auth.js'
 import { type Mailer, renderEmail } from './mail.js'
+import { mayCreateAccount, SIGNUP_CLOSED } from './signup.js'
 
 export interface AuthDeps {
   kernel: Kernel
@@ -72,6 +73,37 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
         status: { type: 'string', required: false, defaultValue: 'active', input: false },
         permissionVersion: { type: 'number', required: false, defaultValue: 0, input: false },
       },
+      /**
+       * The one place `allowSignup` is enforced, and it covers every sign-up path there is.
+       *
+       * Better Auth runs this immediately before `create-user` for every authentication method,
+       * because all of them provision through `internalAdapter.createUser` — email+password, social
+       * OAuth, magic link, SSO (OIDC and SAML), email OTP, SIWE, phone number and the admin plugin.
+       * Passkeys cannot create an account at all (the plugin registers a credential against a
+       * session that already exists), so they are covered by the account having been gated already.
+       *
+       * `link-account` and `sign-in` are deliberately let through: an existing account adding a
+       * second provider, or signing in with one, is not a sign-up, and refusing it would lock people
+       * out of accounts they already have the moment an administrator closes registration.
+       *
+       * Better Auth treats a throw here as a refusal, so a database that cannot answer closes
+       * sign-up rather than opening it. That is the right direction for a gate.
+       */
+      validateUserInfo: async ({ user: candidate, source }) => {
+        if (source.action !== 'create-user') return
+        const verdict = await mayCreateAccount(
+          kernel,
+          env,
+          String(candidate.email ?? ''),
+          source.method ?? 'unknown',
+        )
+        if (verdict.ok) return
+        kernel.log.warn(
+          { method: source.method, reason: verdict.code },
+          'sign-up refused: this instance is invite-only',
+        )
+        return { error: verdict.code ?? SIGNUP_CLOSED, errorDescription: verdict.message }
+      },
     },
     session: {
       expiresIn: 60 * 60 * 24 * 30,
@@ -117,6 +149,30 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
        * quietly treated as unlimited.
        */
       before: createAuthMiddleware(async (ctx) => {
+        /**
+         * Impersonation is off, and the endpoint says so rather than 404ing.
+         *
+         * The admin plugin ships `/admin/impersonate-user`, the session table carries
+         * `impersonated_by`, and the docs promised "impersonate for support (audited)" — while
+         * nothing in the product started an impersonation, ended one, displayed one, or wrote a
+         * record of one. An unaudited way to become any customer, reachable by every instance
+         * admin, is not a support tool; on Kern Cloud it is the difference between an operator and
+         * somebody reading a company's private chat. Until there is recorded consent from the
+         * account being impersonated, the honest state is closed.
+         *
+         * Reading a workspace as an admin is still possible and is what `core.access.crossed`
+         * audits (see `services/access.ts`); that leaves a trace the customer can see, which this
+         * never did.
+         */
+        if (
+          ctx.path.startsWith('/admin/impersonate-user') ||
+          ctx.path.startsWith('/admin/stop-impersonating')
+        )
+          throw new APIError('FORBIDDEN', {
+            message:
+              'Impersonation is disabled on this instance. Administrator access to a workspace is recorded in that workspace’s audit log instead.',
+            code: 'IMPERSONATION_DISABLED',
+          })
         if (!ctx.path.startsWith('/sso/register')) return
         const workspaceId = (ctx.body as { organizationId?: string } | undefined)?.organizationId
         if (!workspaceId)

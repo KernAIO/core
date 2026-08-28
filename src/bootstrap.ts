@@ -1,15 +1,18 @@
 import type { Kernel } from '@kernhq/kernel'
 import { eq } from 'drizzle-orm'
+import { seedSignupPolicy } from './auth/signup.js'
 import type { CoreDeps } from './modules/core/deps.js'
 import { user } from './modules/core/schema/index.js'
 
 /**
- * One-time instance initialisation, safe to run on every boot:
+ * One-time instance initialisation, safe to run on every boot: seeds whether sign-up is open, then
  * creates the first instance admin from KERN_ADMIN_EMAIL / KERN_ADMIN_PASSWORD when no admin exists yet.
  */
 export async function bootstrap(kernel: Kernel, deps: CoreDeps): Promise<void> {
   const { env } = deps
   const db = kernel.database.db
+  // Before the admin is created, because creating it goes through the sign-up gate this seeds.
+  await seedSignupPolicy(kernel, env)
   const [admin] = await db.select({ id: user.id }).from(user).where(eq(user.instanceAdmin, true)).limit(1)
   if (admin) return
   if (!env.KERN_ADMIN_EMAIL || !env.KERN_ADMIN_PASSWORD) {
