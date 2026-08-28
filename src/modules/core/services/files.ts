@@ -5,7 +5,7 @@ import { and, eq, ne, sql } from 'drizzle-orm'
 import type { z } from 'zod'
 import type { CoreDeps } from '../deps.js'
 import { serFile } from '../lib/ser.js'
-import { files } from '../schema/index.js'
+import { files, searchDocuments, workspaceModules } from '../schema/index.js'
 import { type Ctx, membershipOf, requireUser } from './common.js'
 
 const UPLOAD_URL_TTL_SEC = 900
@@ -43,6 +43,61 @@ async function requireFile(ctx: Ctx, id: string) {
   return f
 }
 
+/**
+ * Check that an `attachedTo` ref could belong to this workspace before a ticket is issued.
+ *
+ * The ref is caller-supplied and used to be taken as given, which meant a member of one workspace
+ * could file an upload against another tenant's object id, and against a module that workspace does
+ * not even have switched on. Two things are checkable here without core reaching into a module's
+ * schema, which it must never do:
+ *
+ * - **the module.** It has to be one this instance actually has, and be enabled in this workspace.
+ *   `module_disabled` is the honest refusal: attaching to a feature that is off is not a permission
+ *   problem.
+ * - **the object, when core already knows it.** `search_documents` is core's own index of module
+ *   objects, unique on (workspace, module, type, id). A row for this ref in a *different* workspace
+ *   proves the object is not this one's, so the attach is refused outright. An object nobody
+ *   indexed cannot be checked from here; that needs a per-object resolver the platform declares
+ *   (`ObjectResolver`) and nothing yet implements, and it is the remaining gap.
+ */
+async function assertAttachable(
+  kernel: Kernel,
+  workspaceId: string,
+  ref: NonNullable<core.FileObject['attachedTo']>,
+): Promise<void> {
+  const known = kernel.manifests().some((m) => m.id === ref.module)
+  const [installed] = known
+    ? [true]
+    : await kernel.database.withWorkspace(workspaceId, (tx) =>
+        tx
+          .select({ moduleId: workspaceModules.moduleId })
+          .from(workspaceModules)
+          .where(
+            and(eq(workspaceModules.workspaceId, workspaceId), eq(workspaceModules.moduleId, ref.module)),
+          )
+          .limit(1),
+      )
+  if (!installed) throw KernError.badRequest('Unknown module for attachment', { module: ref.module })
+  if (!(await kernel.isModuleEnabled(workspaceId, ref.module)))
+    throw KernError.conflict(
+      `Module ${ref.module} is disabled in this workspace`,
+      'core.file.module_disabled',
+    )
+  const [elsewhere] = await kernel.database.db
+    .select({ workspaceId: searchDocuments.workspaceId })
+    .from(searchDocuments)
+    .where(
+      and(
+        eq(searchDocuments.module, ref.module),
+        eq(searchDocuments.objectType, ref.type),
+        eq(searchDocuments.objectId, ref.id),
+        ne(searchDocuments.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1)
+  if (elsewhere) throw KernError.notFound('Attachment target')
+}
+
 export async function createUpload(
   ctx: Ctx,
   deps: CoreDeps,
@@ -56,6 +111,7 @@ export async function createUpload(
 ): Promise<z.infer<typeof core.UploadTicket>> {
   const { kernel } = ctx
   const userId = requireUser(ctx.principal)
+  if (input.attachedTo) await assertAttachable(kernel, input.workspaceId, input.attachedTo)
   if (input.size > deps.env.UPLOAD_MAX_PUT_BYTES)
     // TODO: resumable uploads (tus) for files above the single-PUT limit
     throw KernError.badRequest('File is too large for a single upload', {

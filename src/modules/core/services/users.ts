@@ -182,8 +182,40 @@ export async function directory(
   }
 }
 
-export async function getMany(ctx: Ctx, ids: string[]): Promise<core.UserPublic[]> {
+/**
+ * Profiles for a list of user ids, for a service that holds ids and needs names to draw beside them.
+ *
+ * **An email address is only ever handed out for a workspace the caller names**, and only for people
+ * who are actually members of it. That is the same rule `getPublic` applies to an end user — you see
+ * the address of somebody you share a workspace with — expressed for a service principal, which has
+ * no memberships of its own to check. Without it this returned `serUserPublic(u)` for *any* id: a
+ * module in any service could hand core a list of uuids and get back the addresses, which on a
+ * multi-tenant instance is a cross-tenant leak with no attacker sophistication in it at all.
+ *
+ * Callers that only render names (chat's `UserDirectory`, which reads `name`, `username` and
+ * `avatarUrl`) need no workspace and keep working — they simply stop being told the address.
+ */
+export async function getMany(
+  ctx: Ctx,
+  ids: string[],
+  opts: { workspaceId?: string } = {},
+): Promise<core.UserPublic[]> {
   if (!ids.length) return []
-  const rows = await ctx.kernel.database.db.select().from(user).where(inArray(user.id, ids))
-  return rows.map((u) => serUserPublic(u))
+  const db = ctx.kernel.database.db
+  if (!opts.workspaceId) {
+    const rows = await db.select().from(user).where(inArray(user.id, ids))
+    return rows.map((u) => serUserPublic(u, { email: false }))
+  }
+  const rows = await db
+    .select({ u: user })
+    .from(user)
+    .innerJoin(memberships, eq(memberships.userId, user.id))
+    .where(
+      and(
+        inArray(user.id, ids),
+        eq(memberships.workspaceId, opts.workspaceId),
+        eq(memberships.status, 'active'),
+      ),
+    )
+  return rows.map((r) => serUserPublic(r.u))
 }
