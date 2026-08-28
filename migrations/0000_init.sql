@@ -8,7 +8,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 --> statement-breakpoint
 CREATE SCHEMA IF NOT EXISTS "mod_core";
 --> statement-breakpoint
-CREATE TABLE "mod_core"."accounts" (
+CREATE TABLE IF NOT EXISTS "mod_core"."accounts" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"account_id" text NOT NULL,
 	"provider_id" text NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE "mod_core"."accounts" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."api_keys" (
+CREATE TABLE IF NOT EXISTS "mod_core"."api_keys" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"config_id" text DEFAULT 'default' NOT NULL,
 	"name" text,
@@ -49,7 +49,7 @@ CREATE TABLE "mod_core"."api_keys" (
 	"metadata" text
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."jwks" (
+CREATE TABLE IF NOT EXISTS "mod_core"."jwks" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"public_key" text NOT NULL,
 	"private_key" text NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE "mod_core"."jwks" (
 	"crv" text
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."passkeys" (
+CREATE TABLE IF NOT EXISTS "mod_core"."passkeys" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"name" text,
 	"public_key" text NOT NULL,
@@ -73,7 +73,7 @@ CREATE TABLE "mod_core"."passkeys" (
 	"aaguid" text
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."sessions" (
+CREATE TABLE IF NOT EXISTS "mod_core"."sessions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
 	"token" text NOT NULL,
@@ -86,7 +86,7 @@ CREATE TABLE "mod_core"."sessions" (
 	CONSTRAINT "sessions_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."sso_providers" (
+CREATE TABLE IF NOT EXISTS "mod_core"."sso_providers" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"issuer" text NOT NULL,
 	"oidc_config" text,
@@ -98,7 +98,7 @@ CREATE TABLE "mod_core"."sso_providers" (
 	CONSTRAINT "sso_providers_provider_id_unique" UNIQUE("provider_id")
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."two_factors" (
+CREATE TABLE IF NOT EXISTS "mod_core"."two_factors" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"secret" text NOT NULL,
 	"backup_codes" text NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE "mod_core"."two_factors" (
 	"locked_until" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."users" (
+CREATE TABLE IF NOT EXISTS "mod_core"."users" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"name" text NOT NULL,
 	"email" text NOT NULL,
@@ -131,7 +131,7 @@ CREATE TABLE "mod_core"."users" (
 	CONSTRAINT "users_username_unique" UNIQUE("username")
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."verifications" (
+CREATE TABLE IF NOT EXISTS "mod_core"."verifications" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"identifier" text NOT NULL,
 	"value" text NOT NULL,
@@ -140,7 +140,7 @@ CREATE TABLE "mod_core"."verifications" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."activity_events" (
+CREATE TABLE IF NOT EXISTS "mod_core"."activity_events" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"module" text NOT NULL,
@@ -154,7 +154,7 @@ CREATE TABLE "mod_core"."activity_events" (
 	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."files" (
+CREATE TABLE IF NOT EXISTS "mod_core"."files" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"name" text NOT NULL,
@@ -173,7 +173,7 @@ CREATE TABLE "mod_core"."files" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."group_members" (
+CREATE TABLE IF NOT EXISTS "mod_core"."group_members" (
 	"workspace_id" uuid NOT NULL,
 	"group_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
@@ -181,7 +181,7 @@ CREATE TABLE "mod_core"."group_members" (
 	CONSTRAINT "group_members_group_id_user_id_pk" PRIMARY KEY("group_id","user_id")
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."groups" (
+CREATE TABLE IF NOT EXISTS "mod_core"."groups" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"name" text NOT NULL,
@@ -191,13 +191,13 @@ CREATE TABLE "mod_core"."groups" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."instance_settings" (
+CREATE TABLE IF NOT EXISTS "mod_core"."instance_settings" (
 	"key" text PRIMARY KEY NOT NULL,
 	"value" jsonb NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."integrations" (
+CREATE TABLE IF NOT EXISTS "mod_core"."integrations" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"kind" text NOT NULL,
@@ -206,7 +206,7 @@ CREATE TABLE "mod_core"."integrations" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."invitations" (
+CREATE TABLE IF NOT EXISTS "mod_core"."invitations" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"email" text NOT NULL,
@@ -225,7 +225,7 @@ CREATE TABLE "mod_core"."invitations" (
 	CONSTRAINT "invitations_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."memberships" (
+CREATE TABLE IF NOT EXISTS "mod_core"."memberships" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
@@ -239,7 +239,7 @@ CREATE TABLE "mod_core"."memberships" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."notification_settings" (
+CREATE TABLE IF NOT EXISTS "mod_core"."notification_settings" (
 	"user_id" uuid PRIMARY KEY NOT NULL,
 	"email_digest" text DEFAULT 'daily' NOT NULL,
 	"quiet_hours" jsonb,
@@ -248,7 +248,7 @@ CREATE TABLE "mod_core"."notification_settings" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."notifications" (
+CREATE TABLE IF NOT EXISTS "mod_core"."notifications" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"workspace_id" uuid,
@@ -269,7 +269,7 @@ CREATE TABLE "mod_core"."notifications" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."push_subscriptions" (
+CREATE TABLE IF NOT EXISTS "mod_core"."push_subscriptions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"endpoint" text NOT NULL,
@@ -281,7 +281,7 @@ CREATE TABLE "mod_core"."push_subscriptions" (
 	CONSTRAINT "push_subscriptions_endpoint_unique" UNIQUE("endpoint")
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."role_bindings" (
+CREATE TABLE IF NOT EXISTS "mod_core"."role_bindings" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"subject_type" text NOT NULL,
@@ -294,7 +294,7 @@ CREATE TABLE "mod_core"."role_bindings" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."roles" (
+CREATE TABLE IF NOT EXISTS "mod_core"."roles" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"name" text NOT NULL,
@@ -306,7 +306,7 @@ CREATE TABLE "mod_core"."roles" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."search_documents" (
+CREATE TABLE IF NOT EXISTS "mod_core"."search_documents" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"module" text NOT NULL,
@@ -322,7 +322,7 @@ CREATE TABLE "mod_core"."search_documents" (
 	"tsv" "tsvector" GENERATED ALWAYS AS (setweight(to_tsvector('simple', coalesce(title, '')), 'A') || setweight(to_tsvector('simple', coalesce(body, '')), 'B')) STORED
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."workspace_modules" (
+CREATE TABLE IF NOT EXISTS "mod_core"."workspace_modules" (
 	"workspace_id" uuid NOT NULL,
 	"module_id" text NOT NULL,
 	"enabled" boolean DEFAULT true NOT NULL,
@@ -332,7 +332,7 @@ CREATE TABLE "mod_core"."workspace_modules" (
 	CONSTRAINT "workspace_modules_workspace_id_module_id_pk" PRIMARY KEY("workspace_id","module_id")
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."workspaces" (
+CREATE TABLE IF NOT EXISTS "mod_core"."workspaces" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"slug" text NOT NULL,
 	"name" text NOT NULL,
@@ -349,49 +349,62 @@ CREATE TABLE "mod_core"."workspaces" (
 	CONSTRAINT "workspaces_slug_unique" UNIQUE("slug")
 );
 --> statement-breakpoint
+-- `ADD CONSTRAINT` has no `IF NOT EXISTS`, so each is preceded by a drop: a replay of this file
+-- would otherwise throw, and a core migration that throws stops the service booting and takes the
+-- five modules core hosts with it. `src/tests/migrations.test.ts` applies the whole folder twice.
+ALTER TABLE "mod_core"."accounts" DROP CONSTRAINT IF EXISTS "accounts_user_id_users_id_fk";--> statement-breakpoint
 ALTER TABLE "mod_core"."accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "mod_core"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "mod_core"."passkeys" DROP CONSTRAINT IF EXISTS "passkeys_user_id_users_id_fk";--> statement-breakpoint
 ALTER TABLE "mod_core"."passkeys" ADD CONSTRAINT "passkeys_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "mod_core"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "mod_core"."sessions" DROP CONSTRAINT IF EXISTS "sessions_user_id_users_id_fk";--> statement-breakpoint
 ALTER TABLE "mod_core"."sessions" ADD CONSTRAINT "sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "mod_core"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "mod_core"."sso_providers" DROP CONSTRAINT IF EXISTS "sso_providers_user_id_users_id_fk";--> statement-breakpoint
 ALTER TABLE "mod_core"."sso_providers" ADD CONSTRAINT "sso_providers_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "mod_core"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "mod_core"."two_factors" DROP CONSTRAINT IF EXISTS "two_factors_user_id_users_id_fk";--> statement-breakpoint
 ALTER TABLE "mod_core"."two_factors" ADD CONSTRAINT "two_factors_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "mod_core"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "mod_core"."group_members" DROP CONSTRAINT IF EXISTS "group_members_group_id_groups_id_fk";--> statement-breakpoint
 ALTER TABLE "mod_core"."group_members" ADD CONSTRAINT "group_members_group_id_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "mod_core"."groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "mod_core"."invitations" DROP CONSTRAINT IF EXISTS "invitations_workspace_id_workspaces_id_fk";--> statement-breakpoint
 ALTER TABLE "mod_core"."invitations" ADD CONSTRAINT "invitations_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "mod_core"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "mod_core"."memberships" DROP CONSTRAINT IF EXISTS "memberships_workspace_id_workspaces_id_fk";--> statement-breakpoint
 ALTER TABLE "mod_core"."memberships" ADD CONSTRAINT "memberships_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "mod_core"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "mod_core"."memberships" DROP CONSTRAINT IF EXISTS "memberships_user_id_users_id_fk";--> statement-breakpoint
 ALTER TABLE "mod_core"."memberships" ADD CONSTRAINT "memberships_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "mod_core"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "mod_core"."role_bindings" DROP CONSTRAINT IF EXISTS "role_bindings_role_id_roles_id_fk";--> statement-breakpoint
 ALTER TABLE "mod_core"."role_bindings" ADD CONSTRAINT "role_bindings_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "mod_core"."roles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "accounts_user_idx" ON "mod_core"."accounts" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "accounts_provider_idx" ON "mod_core"."accounts" USING btree ("provider_id","account_id");--> statement-breakpoint
-CREATE INDEX "api_keys_config_idx" ON "mod_core"."api_keys" USING btree ("config_id");--> statement-breakpoint
-CREATE INDEX "api_keys_reference_idx" ON "mod_core"."api_keys" USING btree ("reference_id");--> statement-breakpoint
-CREATE INDEX "api_keys_key_idx" ON "mod_core"."api_keys" USING btree ("key");--> statement-breakpoint
-CREATE INDEX "passkeys_user_idx" ON "mod_core"."passkeys" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "passkeys_credential_idx" ON "mod_core"."passkeys" USING btree ("credential_id");--> statement-breakpoint
-CREATE INDEX "sessions_user_idx" ON "mod_core"."sessions" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "two_factors_user_idx" ON "mod_core"."two_factors" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "users_status_idx" ON "mod_core"."users" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "users_name_idx" ON "mod_core"."users" USING btree ("name");--> statement-breakpoint
-CREATE INDEX "verifications_identifier_idx" ON "mod_core"."verifications" USING btree ("identifier");--> statement-breakpoint
-CREATE INDEX "activity_ws_time_idx" ON "mod_core"."activity_events" USING btree ("workspace_id","occurred_at");--> statement-breakpoint
-CREATE INDEX "activity_ws_object_idx" ON "mod_core"."activity_events" USING btree ("workspace_id","object_module","object_type","object_id","occurred_at");--> statement-breakpoint
-CREATE INDEX "activity_ws_actor_idx" ON "mod_core"."activity_events" USING btree ("workspace_id","actor_id","occurred_at");--> statement-breakpoint
-CREATE INDEX "files_ws_idx" ON "mod_core"."files" USING btree ("workspace_id","created_at");--> statement-breakpoint
-CREATE INDEX "files_attached_idx" ON "mod_core"."files" USING btree ("workspace_id","attached_to");--> statement-breakpoint
-CREATE INDEX "group_members_ws_user_idx" ON "mod_core"."group_members" USING btree ("workspace_id","user_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "groups_ws_handle_uq" ON "mod_core"."groups" USING btree ("workspace_id","handle");--> statement-breakpoint
-CREATE UNIQUE INDEX "integrations_ws_kind_uq" ON "mod_core"."integrations" USING btree ("workspace_id","kind");--> statement-breakpoint
-CREATE INDEX "invitations_ws_idx" ON "mod_core"."invitations" USING btree ("workspace_id","status");--> statement-breakpoint
-CREATE INDEX "invitations_email_idx" ON "mod_core"."invitations" USING btree ("email");--> statement-breakpoint
-CREATE UNIQUE INDEX "memberships_ws_user_uq" ON "mod_core"."memberships" USING btree ("workspace_id","user_id");--> statement-breakpoint
-CREATE INDEX "memberships_user_idx" ON "mod_core"."memberships" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "notifications_user_created_idx" ON "mod_core"."notifications" USING btree ("user_id","created_at");--> statement-breakpoint
-CREATE INDEX "notifications_user_unread_idx" ON "mod_core"."notifications" USING btree ("user_id","workspace_id") WHERE read_at is null and archived_at is null;--> statement-breakpoint
-CREATE INDEX "notifications_digest_idx" ON "mod_core"."notifications" USING btree ("user_id") WHERE email_queued and emailed_at is null;--> statement-breakpoint
-CREATE INDEX "push_subscriptions_user_idx" ON "mod_core"."push_subscriptions" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "role_bindings_ws_scope_idx" ON "mod_core"."role_bindings" USING btree ("workspace_id","scope_kind","scope_id");--> statement-breakpoint
-CREATE INDEX "role_bindings_ws_subject_idx" ON "mod_core"."role_bindings" USING btree ("workspace_id","subject_type","subject_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "roles_ws_name_uq" ON "mod_core"."roles" USING btree ("workspace_id","name");--> statement-breakpoint
-CREATE UNIQUE INDEX "search_documents_object_uq" ON "mod_core"."search_documents" USING btree ("workspace_id","module","object_type","object_id");--> statement-breakpoint
-CREATE INDEX "search_documents_tsv_idx" ON "mod_core"."search_documents" USING gin ("tsv");--> statement-breakpoint
-CREATE INDEX "search_documents_title_trgm_idx" ON "mod_core"."search_documents" USING gin ("title" gin_trgm_ops);--> statement-breakpoint
-CREATE INDEX "search_documents_ws_updated_idx" ON "mod_core"."search_documents" USING btree ("workspace_id","updated_at");--> statement-breakpoint
-CREATE INDEX "workspaces_archived_idx" ON "mod_core"."workspaces" USING btree ("archived_at");
+CREATE INDEX IF NOT EXISTS "accounts_user_idx" ON "mod_core"."accounts" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "accounts_provider_idx" ON "mod_core"."accounts" USING btree ("provider_id","account_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "api_keys_config_idx" ON "mod_core"."api_keys" USING btree ("config_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "api_keys_reference_idx" ON "mod_core"."api_keys" USING btree ("reference_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "api_keys_key_idx" ON "mod_core"."api_keys" USING btree ("key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "passkeys_user_idx" ON "mod_core"."passkeys" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "passkeys_credential_idx" ON "mod_core"."passkeys" USING btree ("credential_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "sessions_user_idx" ON "mod_core"."sessions" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "two_factors_user_idx" ON "mod_core"."two_factors" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "users_status_idx" ON "mod_core"."users" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "users_name_idx" ON "mod_core"."users" USING btree ("name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "verifications_identifier_idx" ON "mod_core"."verifications" USING btree ("identifier");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "activity_ws_time_idx" ON "mod_core"."activity_events" USING btree ("workspace_id","occurred_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "activity_ws_object_idx" ON "mod_core"."activity_events" USING btree ("workspace_id","object_module","object_type","object_id","occurred_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "activity_ws_actor_idx" ON "mod_core"."activity_events" USING btree ("workspace_id","actor_id","occurred_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "files_ws_idx" ON "mod_core"."files" USING btree ("workspace_id","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "files_attached_idx" ON "mod_core"."files" USING btree ("workspace_id","attached_to");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "group_members_ws_user_idx" ON "mod_core"."group_members" USING btree ("workspace_id","user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "groups_ws_handle_uq" ON "mod_core"."groups" USING btree ("workspace_id","handle");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "integrations_ws_kind_uq" ON "mod_core"."integrations" USING btree ("workspace_id","kind");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "invitations_ws_idx" ON "mod_core"."invitations" USING btree ("workspace_id","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "invitations_email_idx" ON "mod_core"."invitations" USING btree ("email");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "memberships_ws_user_uq" ON "mod_core"."memberships" USING btree ("workspace_id","user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "memberships_user_idx" ON "mod_core"."memberships" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "notifications_user_created_idx" ON "mod_core"."notifications" USING btree ("user_id","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "notifications_user_unread_idx" ON "mod_core"."notifications" USING btree ("user_id","workspace_id") WHERE read_at is null and archived_at is null;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "notifications_digest_idx" ON "mod_core"."notifications" USING btree ("user_id") WHERE email_queued and emailed_at is null;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "push_subscriptions_user_idx" ON "mod_core"."push_subscriptions" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "role_bindings_ws_scope_idx" ON "mod_core"."role_bindings" USING btree ("workspace_id","scope_kind","scope_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "role_bindings_ws_subject_idx" ON "mod_core"."role_bindings" USING btree ("workspace_id","subject_type","subject_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "roles_ws_name_uq" ON "mod_core"."roles" USING btree ("workspace_id","name");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "search_documents_object_uq" ON "mod_core"."search_documents" USING btree ("workspace_id","module","object_type","object_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "search_documents_tsv_idx" ON "mod_core"."search_documents" USING gin ("tsv");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "search_documents_title_trgm_idx" ON "mod_core"."search_documents" USING gin ("title" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "search_documents_ws_updated_idx" ON "mod_core"."search_documents" USING btree ("workspace_id","updated_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "workspaces_archived_idx" ON "mod_core"."workspaces" USING btree ("archived_at");

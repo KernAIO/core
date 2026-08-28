@@ -1,5 +1,8 @@
-
-CREATE TABLE "mod_core"."mcp_auth_requests" (
+-- Guarded so a replay is a no-op: the kernel migrates every module at boot and a statement that
+-- throws stops core binding :4000, taking the five modules it hosts with it. The `UNIQUE(...)`
+-- constraints are inline in `CREATE TABLE`, so they inherit the guard rather than needing a
+-- `drop constraint if exists` of their own. See `src/tests/migrations.test.ts`.
+CREATE TABLE IF NOT EXISTS "mod_core"."mcp_auth_requests" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"client_id" text NOT NULL,
@@ -12,7 +15,7 @@ CREATE TABLE "mod_core"."mcp_auth_requests" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."mcp_clients" (
+CREATE TABLE IF NOT EXISTS "mod_core"."mcp_clients" (
 	"client_id" text PRIMARY KEY NOT NULL,
 	"secret_hash" text,
 	"name" text NOT NULL,
@@ -24,7 +27,7 @@ CREATE TABLE "mod_core"."mcp_clients" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."mcp_codes" (
+CREATE TABLE IF NOT EXISTS "mod_core"."mcp_codes" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"code_hash" text NOT NULL,
 	"client_id" text NOT NULL,
@@ -39,7 +42,7 @@ CREATE TABLE "mod_core"."mcp_codes" (
 	CONSTRAINT "mcp_codes_code_hash_unique" UNIQUE("code_hash")
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."mcp_consents" (
+CREATE TABLE IF NOT EXISTS "mod_core"."mcp_consents" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"client_id" text NOT NULL,
@@ -48,7 +51,7 @@ CREATE TABLE "mod_core"."mcp_consents" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mod_core"."mcp_tokens" (
+CREATE TABLE IF NOT EXISTS "mod_core"."mcp_tokens" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"kind" text NOT NULL,
 	"token_hash" text NOT NULL,
@@ -63,10 +66,10 @@ CREATE TABLE "mod_core"."mcp_tokens" (
 	CONSTRAINT "mcp_tokens_token_hash_unique" UNIQUE("token_hash")
 );
 --> statement-breakpoint
-CREATE INDEX "mcp_auth_requests_user_idx" ON "mod_core"."mcp_auth_requests" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "mcp_clients_created_by_idx" ON "mod_core"."mcp_clients" USING btree ("created_by");--> statement-breakpoint
-CREATE INDEX "mcp_codes_user_idx" ON "mod_core"."mcp_codes" USING btree ("user_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "mcp_consents_uq" ON "mod_core"."mcp_consents" USING btree ("user_id","client_id","workspace_id");--> statement-breakpoint
-CREATE INDEX "mcp_tokens_user_idx" ON "mod_core"."mcp_tokens" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "mcp_tokens_workspace_idx" ON "mod_core"."mcp_tokens" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "mcp_tokens_client_idx" ON "mod_core"."mcp_tokens" USING btree ("client_id");
+CREATE INDEX IF NOT EXISTS "mcp_auth_requests_user_idx" ON "mod_core"."mcp_auth_requests" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "mcp_clients_created_by_idx" ON "mod_core"."mcp_clients" USING btree ("created_by");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "mcp_codes_user_idx" ON "mod_core"."mcp_codes" USING btree ("user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "mcp_consents_uq" ON "mod_core"."mcp_consents" USING btree ("user_id","client_id","workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "mcp_tokens_user_idx" ON "mod_core"."mcp_tokens" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "mcp_tokens_workspace_idx" ON "mod_core"."mcp_tokens" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "mcp_tokens_client_idx" ON "mod_core"."mcp_tokens" USING btree ("client_id");

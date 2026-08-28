@@ -33,12 +33,16 @@ create unique index if not exists "dashboard_layouts_ws_surface_default_uq"
 create unique index if not exists "dashboard_layouts_ws_user_surface_uq"
   on "mod_core"."dashboard_layouts" ("workspace_id", "user_id", "surface") where "user_id" is not null;--> statement-breakpoint
 
+-- `create policy` has no `if not exists`, so a replay of this file would throw and stop core
+-- booting. See the header of 0001_rls.sql.
+drop policy if exists "dashboard_layouts_ws_isolation" on "mod_core"."dashboard_layouts";--> statement-breakpoint
 alter table "mod_core"."dashboard_layouts" enable row level security;--> statement-breakpoint
 alter table "mod_core"."dashboard_layouts" force row level security;--> statement-breakpoint
 create policy "dashboard_layouts_ws_isolation" on "mod_core"."dashboard_layouts"
   using (workspace_id::text = current_setting('app.workspace_id', true))
   with check (workspace_id::text = current_setting('app.workspace_id', true));--> statement-breakpoint
 
+drop policy if exists "dashboard_settings_ws_isolation" on "mod_core"."dashboard_settings";--> statement-breakpoint
 alter table "mod_core"."dashboard_settings" enable row level security;--> statement-breakpoint
 alter table "mod_core"."dashboard_settings" force row level security;--> statement-breakpoint
 create policy "dashboard_settings_ws_isolation" on "mod_core"."dashboard_settings"
