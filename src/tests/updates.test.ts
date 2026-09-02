@@ -115,11 +115,18 @@ describe('platform updates', () => {
     expect(off.latest).toBeNull()
     expect(off.nextAttemptAt).toBeNull()
 
-    // switching it back on reads the feed again, which fails without a signing key rather than
-    // silently reporting the instance as current
-    const on = await admin.api.admin.updates.setPolicy({ mode: 'notify' })
-    expect(on.policy.mode).toBe('notify')
-    expect(on.lastError).toBeTruthy()
+    // switching it back on reads the feed again, and a check that fails is reported rather than
+    // silently reporting the instance as current. The real feed is signed and reachable now, so
+    // point this instance at a feed that is not — the default URL answered a genuine feed from CI
+    // the day the signing key was configured, and this asserted on the network instead of the code.
+    await setInstanceSetting(core.kernel, 'updates.feed', 'http://127.0.0.1:9/releases.json')
+    try {
+      const on = await admin.api.admin.updates.setPolicy({ mode: 'notify' })
+      expect(on.policy.mode).toBe('notify')
+      expect(on.lastError).toBeTruthy()
+    } finally {
+      await clearInstanceSetting(core.kernel, 'updates.feed')
+    }
     await seedFeed([release()])
   })
 

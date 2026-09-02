@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgres://kern:kern@127.0.0.1:5432/kern
+      # 127.0.0.1, never localhost: a runner resolves localhost to ::1 first, where nothing listens.
+      S3_ENDPOINT: http://127.0.0.1:9000
     services:
       # The suites run against a real Postgres: they create a scratch database per file, apply the
       # migrations and prove row-level security by connecting as an unprivileged role. Nothing here
@@ -36,6 +38,23 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24 }
       - run: if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else pnpm install; fi
+      # Signing an upload URL is local arithmetic, but the workspace export *transfers bytes* into
+      # the bucket, and its suite fails with a status of `failed` rather than skipping when no
+      # object storage answers. A service container cannot be given the `server /data` command the
+      # image needs, so it is started by hand, with the credentials and bucket the harness assumes.
+      - name: Start object storage for the suites that transfer bytes
+        run: |
+          set -euo pipefail
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=kern-test-access-key -e MINIO_ROOT_PASSWORD=kern-test-secret-key \
+            minio/minio:latest server /data >/dev/null
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null 2>&1 && break
+            [ "$i" = "30" ] && { echo "MinIO did not come up"; docker logs minio; exit 1; }
+            sleep 1
+          done
+          docker run --rm --network host --entrypoint sh minio/mc:latest -c \
+            'mc alias set t http://127.0.0.1:9000 kern-test-access-key kern-test-secret-key >/dev/null && mc mb --ignore-existing t/kern-test'
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
