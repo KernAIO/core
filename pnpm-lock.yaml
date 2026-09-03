@@ -31,17 +31,17 @@ importers:
         specifier: ^0.4.1
         version: 0.4.1(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/node@24.13.3)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
       '@kernhq/module-hr':
-        specifier: ^0.20.3
-        version: 0.20.3(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
+        specifier: ^0.23.0
+        version: 0.23.0(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
       '@kernhq/module-inventory':
-        specifier: ^0.4.2
-        version: 0.4.2(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
+        specifier: ^0.5.0
+        version: 0.5.0(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
       '@kernhq/module-quire':
-        specifier: ^0.16.1
-        version: 0.16.1(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0)(y-protocols@1.0.7(yjs@13.6.32))
+        specifier: ^0.16.2
+        version: 0.16.2(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0)(y-protocols@1.0.7(yjs@13.6.32))
       '@kernhq/module-tracker':
-        specifier: ^0.11.14
-        version: 0.11.14(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
+        specifier: ^0.11.15
+        version: 0.11.15(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
         version: 1.30.0(zod@4.5.4)
@@ -1325,8 +1325,8 @@ packages:
       svelte:
         optional: true
 
-  '@kernhq/module-hr@0.20.3':
-    resolution: {integrity: sha512-r66Jtzt2SAyEHOaBmsoTPx3HhBUwImKoT2l7Ms+rhWi/AnBd8p/t+byfjWQlFdjH2L4lQpUpf+L471Q6wYi1xA==}
+  '@kernhq/module-hr@0.23.0':
+    resolution: {integrity: sha512-5/BJcEAsfoh3dBLk6TmQiFNn57rWChZjz2jtLu9x5Okx+ICfiXdWjmGdqcwU50svrqtZ7Xjf0au0SnSmiPOYEg==}
     engines: {node: '>=24'}
     peerDependencies:
       '@kernhq/contracts': ^0.7.0
@@ -1342,8 +1342,8 @@ packages:
       svelte:
         optional: true
 
-  '@kernhq/module-inventory@0.4.2':
-    resolution: {integrity: sha512-j7IZpSY/NZY3VzMs+nDXv3aLJiyKXQAn5VuYmW+pGCNPdQdKs9RDLQ3ZvCYuzEQI7+dImuynhsVd3jm+A8KK1A==}
+  '@kernhq/module-inventory@0.5.0':
+    resolution: {integrity: sha512-QGVtivpODlbGstsxPAyFAESa2q404FZCwui/A7PkAnfKB7yKgN29ebC4dW9Foz9GeI5vT/l2d05VHpa0G+0CRQ==}
     engines: {node: '>=24'}
     peerDependencies:
       '@kernhq/contracts': ^0.7.0
@@ -1359,8 +1359,8 @@ packages:
       svelte:
         optional: true
 
-  '@kernhq/module-quire@0.16.1':
-    resolution: {integrity: sha512-qpfhUJ3KYz0vnpqGqdRf+DwVZG3gMtbvScKC1JH3Rru9GRTO7KlSaZ/yO0a8n5e/ODZDXVKqHg7m1LqeHX/A8g==}
+  '@kernhq/module-quire@0.16.2':
+    resolution: {integrity: sha512-d21QaB/4v65JS417PnS7b205qbTqwU+A4cqG24yeXghXx89gRzU2s84nhezf3ZG4MZ8eY/I5KnPbhFhGzm+VTg==}
     engines: {node: '>=24'}
     peerDependencies:
       '@kernhq/contracts': ^0.7.0
@@ -1374,8 +1374,8 @@ packages:
       svelte:
         optional: true
 
-  '@kernhq/module-tracker@0.11.14':
-    resolution: {integrity: sha512-5u3jLONMxW3lfzWEsCXNG6RUIPNC3JBLyhpzdhPXe3fYEtAvdwakeec3oNu2poCDaF0orr7/gykv9OHaSvUWSw==}
+  '@kernhq/module-tracker@0.11.15':
+    resolution: {integrity: sha512-hPfONGLpjgdgrsvnX44YY4y7DAkUS/P8lh4l6pBHToXadzROJ9k1nld0B0mjW2lsPQXskpI3LerdgLSIzWGhew==}
     engines: {node: '>=24'}
     peerDependencies:
       '@kernhq/contracts': ^0.7.0
@@ -5660,7 +5660,7 @@ snapshots:
       - sqlite3
       - ws
 
-  '@kernhq/module-hr@0.20.3(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)':
+  '@kernhq/module-hr@0.23.0(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)':
     dependencies:
       '@kernhq/contracts': 0.7.0
       '@kernhq/kernel': 0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)
@@ -5707,7 +5707,7 @@ snapshots:
       - sqlite3
       - ws
 
-  '@kernhq/module-inventory@0.4.2(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)':
+  '@kernhq/module-inventory@0.5.0(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)':
     dependencies:
       '@kernhq/contracts': 0.7.0
       '@kernhq/kernel': 0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)
@@ -5755,7 +5755,7 @@ snapshots:
       - sqlite3
       - ws
 
-  '@kernhq/module-quire@0.16.1(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0)(y-protocols@1.0.7(yjs@13.6.32))':
+  '@kernhq/module-quire@0.16.2(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0)(y-protocols@1.0.7(yjs@13.6.32))':
     dependencies:
       '@kernhq/contracts': 0.7.0
       '@kernhq/kernel': 0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)
@@ -5809,7 +5809,7 @@ snapshots:
       - ws
       - y-protocols
 
-  '@kernhq/module-tracker@0.11.14(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)':
+  '@kernhq/module-tracker@0.11.15(@kernhq/contracts@0.7.0)(@kernhq/kernel@0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)':
     dependencies:
       '@kernhq/contracts': 0.7.0
       '@kernhq/kernel': 0.9.1(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)
