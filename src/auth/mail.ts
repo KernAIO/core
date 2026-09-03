@@ -30,12 +30,16 @@ export function createMailer(kernel: Kernel, env: CoreEnv): Mailer {
     if (env.NODE_ENV !== 'production') return false
     if (!kernel.broker.has('mail.send') && !kernel.nats) return false
     try {
+      // The mail contract's `SendMailInput`: `to` is a list, and instance-level mail *omits*
+      // `workspaceId` rather than passing null. Both were wrong here, so every call failed
+      // validation and every sign-in link went out through the SMTP fallback below — which on an
+      // instance whose mail is configured per workspace in the mail module means it did not go.
       await kernel.call('mail.send', {
-        to: msg.to,
+        to: [msg.to],
         subject: msg.subject,
         text: msg.text,
         html: msg.html,
-        workspaceId: msg.workspaceId ?? null,
+        ...(msg.workspaceId ? { workspaceId: msg.workspaceId } : {}),
       })
       return true
     } catch (err) {
