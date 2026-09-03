@@ -19,8 +19,15 @@ RUN --mount=type=secret,id=NODE_AUTH_TOKEN \
     sed -i '/_authToken/d' .npmrc
 
 FROM deps AS build
+# Modules of your own, built into this image beside the first-party set — space-separated npm specs,
+# each of which must export a server module as its `./server` default:
+#   docker build --build-arg KERN_EXTRA_MODULES="@acme/module-crm@1.2.0" .
+# Empty in the images Kern publishes. `scripts/extra-modules.mjs` says what it does with them.
+ARG KERN_EXTRA_MODULES=""
 COPY . .
-RUN pnpm build && pnpm prune --prod
+RUN if [ -n "$KERN_EXTRA_MODULES" ]; then pnpm add $KERN_EXTRA_MODULES; fi && \
+    node scripts/extra-modules.mjs && \
+    pnpm build && pnpm prune --prod
 
 FROM base AS runtime
 # The release this image belongs to. Every Kern service in an instance is built from the same one,

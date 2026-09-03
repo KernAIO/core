@@ -10,6 +10,7 @@ import { createMailer } from './auth/mail.js'
 import { createPrincipalResolver } from './auth/principal.js'
 import { bootstrap } from './bootstrap.js'
 import { type CoreEnv, loadCoreEnv } from './env.js'
+import { extraModules } from './extra-modules.js'
 import { extendHttp } from './http.js'
 import { createMcpRuntime } from './mcp/server.js'
 import { type CoreDeps, createDepsRef } from './modules/core/deps.js'
@@ -36,7 +37,15 @@ export interface CoreService {
  * Each brings its own Postgres schema, migrations, router at `/api/<id>`, jobs and permissions, and
  * a workspace can switch it off — so hosting one here is not the same as forcing it on anyone.
  */
-export const featureModules = [trackerModule, quireModule, hrModule, billingModule, inventoryModule]
+export const featureModules = [
+  trackerModule,
+  quireModule,
+  hrModule,
+  billingModule,
+  inventoryModule,
+  // whatever KERN_EXTRA_MODULES put into this image; see scripts/extra-modules.mjs
+  ...extraModules,
+]
 
 /**
  * Boots the core service: kernel (DB, events, jobs, authz) + Better Auth + the core module,
