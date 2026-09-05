@@ -84,4 +84,33 @@ describe('sign-in rate limit', () => {
       await core?.stop()
     }
   })
+
+  /**
+   * The limiter being on under `NODE_ENV=test` is deliberate, and this is why it cannot make the
+   * suite flaky: it lives in the handler's `onRequest`, and every other suite signs in through
+   * `auth.api.signInEmail`, which never reaches it. Ten sign-ins per minute per IP would otherwise
+   * be a tight budget for a file that signs in once per account, on a runner where every test
+   * arrives from 127.0.0.1 — a failure that appears only under load and only sometimes, which is
+   * the worst kind to leave for somebody else. The test above is the *only* place in this
+   * repository that drives `auth.handler`, and it gives each bucket its own address on purpose.
+   *
+   * If a suite ever does need to sign in over HTTP repeatedly, give it its own `x-forwarded-for`
+   * rather than turning the limiter off: an instance with no limiter proves nothing about the one
+   * customers run.
+   */
+  it('does not limit the server-side sign-in every other suite uses', async () => {
+    core = await startCore()
+    try {
+      const person = await core.signUp({ name: 'Signing In Repeatedly' })
+      const budget = RATE_LIMIT.rules['/sign-in/*'].max
+      for (let i = 0; i < budget * 2; i++) {
+        const res = await core.service.deps.auth.api.signInEmail({
+          body: { email: person.email, password: 'correct-horse-battery-staple' },
+        })
+        expect(res.token, `sign-in ${i + 1} of ${budget * 2} was refused`).toBeTruthy()
+      }
+    } finally {
+      await core?.stop()
+    }
+  })
 })
