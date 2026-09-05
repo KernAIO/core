@@ -106,6 +106,100 @@ describe('personal API keys', () => {
     await api.apiKeys.revoke({ id: created.id })
   })
 
+  /**
+   * A request holding a key is an API-key request, whatever else it is also holding.
+   *
+   * `resolve` reads `x-api-key` before it reads anything else, so the key's scope decides — and it
+   * has to stay that way, because the alternative is a session. Better Auth's api-key plugin runs
+   * with `enableSessionForAPIKeys`, so anything that hands it the whole request and asks for a
+   * session gets one *manufactured from the key*, with none of the scope, workspace or capability
+   * narrowing `fromApiKey` applies. That is what reopened a closed account through
+   * `DELETE /api/core/account/deletion` (see `account-reopen.test.ts`); here the same confusion
+   * would silently upgrade a read-only key to its owner's full session.
+   */
+  it('is never upgraded to a session by another credential on the same request', async () => {
+    const created = await api.apiKeys.create({
+      workspaceId,
+      name: 'Read only, alongside a session',
+      scope: 'read',
+      expiresInDays: null,
+    })
+    const write = await core.service.app!.inject({
+      method: 'PATCH',
+      url: '/api/core/users/me',
+      headers: {
+        'x-api-key': created.key,
+        // the owner's own live session, on the very same request
+        authorization: `Bearer ${owner.token}`,
+        'content-type': 'application/json',
+      },
+      payload: { name: 'Renamed by a read-only key riding a session' },
+    })
+    expect(write.statusCode).toBe(401)
+    await api.apiKeys.revoke({ id: created.id })
+  })
+
+  /**
+   * A key is a key to the Kern API, and to nothing under `/api/auth`.
+   *
+   * Better Auth's api-key plugin offers `enableSessionForAPIKeys`, which reads like "let the key
+   * authenticate" and is really "manufacture a session from the header on **every** auth endpoint".
+   * With it on, this read-only key answered 200 to `GET /api/auth/list-sessions` — handing over its
+   * owner's live session token in plaintext, which the `bearer` plugin then accepts as a whole
+   * interactive session. So the write refused two tests above was granted to the token the key had
+   * just given away: a read-scoped credential was a full account takeover, and `update-user`,
+   * `api-key/create` and the account-reopen route went with it.
+   *
+   * Kern never needed the option — `fromApiKey` calls `verifyApiKey` itself — so it is off, and
+   * this is the check that keeps it off. The endpoints below are the reachable ones: whatever a
+   * key is allowed to do, it is not allowed to become a session.
+   */
+  it('cannot become a session on Better Auth’s own endpoints', async () => {
+    const created = await api.apiKeys.create({
+      workspaceId,
+      name: 'Nosy',
+      scope: 'read',
+      expiresInDays: null,
+    })
+
+    const sessions = await core.service.app!.inject({
+      method: 'GET',
+      url: '/api/auth/list-sessions',
+      headers: { 'x-api-key': created.key },
+    })
+    expect(sessions.statusCode, 'a key must never be handed a session token').toBe(401)
+
+    const session = await core.service.app!.inject({
+      method: 'GET',
+      url: '/api/auth/get-session',
+      headers: { 'x-api-key': created.key },
+    })
+    expect(session.json()).toBeNull()
+
+    for (const [url, payload] of [
+      ['/api/auth/update-user', { name: 'Renamed without a session' }],
+      ['/api/auth/api-key/create', { name: 'Minted without a session' }],
+    ] as const) {
+      const res = await core.service.app!.inject({
+        method: 'POST',
+        url,
+        headers: { 'x-api-key': created.key, 'content-type': 'application/json' },
+        payload,
+      })
+      expect(res.statusCode, `${url} accepted an API key as a session`).toBe(401)
+    }
+
+    // and the key still does the job it was made for
+    const read = await core.service.app!.inject({
+      method: 'GET',
+      url: '/api/core/users/me',
+      headers: { 'x-api-key': created.key },
+    })
+    expect(read.statusCode).toBe(200)
+
+    await api.apiKeys.revoke({ id: created.id })
+  })
+
   it('stops authenticating the moment it is revoked', async () => {
     const created = await api.apiKeys.create({
       workspaceId,

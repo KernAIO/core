@@ -375,10 +375,29 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
         },
       }),
       multiSession({ maximumSessions: 10 }),
-      // `enableMetadata` is what lets a key carry the workspace and scope it was created for —
-      // without it `createApiKey` refuses any `metadata` at all, and there would be nowhere honest
-      // to put either.
-      apiKey({ enableSessionForAPIKeys: true, apiKeyHeaders: ['x-api-key'], enableMetadata: true }),
+      /**
+       * `enableMetadata` is what lets a key carry the workspace and scope it was created for —
+       * without it `createApiKey` refuses any `metadata` at all, and there would be nowhere honest
+       * to put either.
+       *
+       * **`enableSessionForAPIKeys` is off, and turning it on is a full account takeover.** The
+       * option reads like "let a key authenticate", which Kern does not need it for: `fromApiKey`
+       * calls `verifyApiKey` itself and narrows the result to one workspace and to the key's own
+       * `read`/`read_write` scope. What the option actually does is register a `before` hook on
+       * **every** Better Auth endpoint that manufactures a session out of an `x-api-key` header —
+       * a session object with the key's id, no row in `sessions`, and no glance at `users.status`.
+       * Measured with a **read**-scoped key over HTTP while it was on: `GET /api/auth/list-sessions`
+       * answered 200 with the owner's live session token in plaintext, and that token is a full
+       * interactive session through the `bearer` plugin — so `PATCH /api/core/users/me` was 401 for
+       * the key and 200 for the token the key had just handed over. `POST /api/auth/update-user`
+       * renamed the account, `POST /api/auth/api-key/create` minted another key with no capability
+       * or audience check, and both still worked after the account was closed. It also reached
+       * `DELETE /api/core/account/deletion`, which is how it was found.
+       *
+       * Every Kern surface an API key legitimately reaches goes through `resolve()` in
+       * `principal.ts`; nothing here needs Better Auth to believe a key is a session.
+       */
+      apiKey({ enableSessionForAPIKeys: false, apiKeyHeaders: ['x-api-key'], enableMetadata: true }),
       admin({ defaultRole: 'user', adminRoles: ['admin'] }),
       // SSO (OIDC/SAML) per workspace: providers are registered through Better Auth's /sso/register
       // endpoint. The `before` hook above refuses registration when the workspace's plan does not

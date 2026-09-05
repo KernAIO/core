@@ -333,6 +333,28 @@ and a reference UI at `/api/docs`.
   500 where a refusal belongs). `sessionHeaders()` is the second barrier: anything asking Better
   Auth about a session hands it `cookie` and `authorization` and nothing else, because handing it
   every header is handing it every credential.
+- **`enableSessionForAPIKeys` was on, and it made every read-only API key a full account takeover.**
+  The option reads like "let a key authenticate", which is not what it does and not what Kern needs
+  it for — `fromApiKey` calls `verifyApiKey` itself and narrows the result to one workspace and to
+  the key's `read`/`read_write` scope. What it does is register that manufacturing hook on **every**
+  Better Auth endpoint. Measured with a read-scoped key over HTTP: `GET /api/auth/list-sessions`
+  answered 200 with the owner's live session token **in plaintext**, and the `bearer` plugin accepts
+  that token as a whole interactive session — so `PATCH /api/core/users/me` was 401 for the key and
+  200 for the token the key had just handed over. `update-user` renamed the account,
+  `api-key/create` minted another key with no capability or audience check, and both still worked
+  after the account was closed. Off now, with `api-keys.test.ts` holding it there. The general
+  shape: when a plugin option is about *how a credential is recognised*, read what it registers,
+  not what it is called — and check the endpoints you did not write, because the library ships more
+  of them than the product does.
+- **A key minted through `POST /api/auth/api-key/create` is inert, and that is luck rather than a
+  gate.** The raw Better Auth endpoint is mounted under `/api/auth/*` like every other, so a member
+  with a session can create a key without passing `apiKeys.create`'s capability and audience checks.
+  It authenticates nothing — `readApiKeyMetadata` returns null for a key with no `workspaceId`, so
+  `fromApiKey` refuses it, and with `enableSessionForAPIKeys` off it is no longer a session either —
+  but it is a row in `api_keys` that the workspace's own key list does not show. Blocking the path
+  in the `before` hook is not free: core's own `apiKeys.create` calls `auth.api.createApiKey`, which
+  arrives at the same `ctx.path`, so the hook has to tell a request-bound call from a server-side
+  one (the same question the impersonation block already answers).
 - **Do not pass `template` on `mail.send` from here — it would undo the localisation.** The mail
   module ships five branded MJML templates named exactly as core's messages (`magic-link`,
   `reset-password`, `verify-email`, `invitation`, `notification-digest`), and `SendMailInput` takes
