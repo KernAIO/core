@@ -24,9 +24,12 @@
  */
 import type { Principal } from '@kernhq/contracts'
 import { httpStatusFor, KernError, type Kernel, type ModuleHttpRoute } from '@kernhq/kernel'
+import { eq } from 'drizzle-orm'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
+import { toHeaders } from '../../auth/principal.js'
 import type { CoreDeps } from './deps.js'
+import { user as userTable } from './schema/index.js'
 import * as deletion from './services/deletion.js'
 import * as exportsSvc from './services/exports.js'
 
@@ -57,6 +60,55 @@ async function authed(deps: CoreDeps, request: FastifyRequest): Promise<Principa
   const principal = await deps.principals.resolve(request)
   if (principal.kind === 'anonymous' || !principal.userId) throw KernError.unauthorized()
   return principal
+}
+
+/** Who a request speaks for on the undo path, and whether their account is already closed. */
+interface Closable {
+  userId: string
+  instanceAdmin: boolean
+  /** the account is suspended with an open deletion request: only the undo routes accept this */
+  closed: boolean
+}
+
+/**
+ * The one place a **closed** account still authenticates, and only to read or cancel its own
+ * closure.
+ *
+ * Closing an account suspends the user row and deletes every session, and `principal.ts` answers
+ * ANONYMOUS for any non-active user on every credential path there is — cookie, bearer, JWT, API
+ * key, MCP token. So `authed()` refused the cancel route with a 401 for the whole of the grace
+ * period, and the 30-day undo the terms and the privacy policy both promise could not be reached by
+ * the person it was promised to. On a self-hosted instance whose only administrator closed their own
+ * account, nobody could reach it at all.
+ *
+ * The narrowing that makes this safe is deliberate and worth stating:
+ *
+ * - **Sessions only.** Better Auth knows nothing of `users.status`, so a closed account can still
+ *   sign in and be handed a session; that session is what is read here. An API key, a JWT and an MCP
+ *   token all resolve through `fromUserId` and stay anonymous — a machine credential must not be
+ *   able to undo a closure.
+ * - **Suspended, not deleted.** Once the purge has run the row is anonymised and there is nothing to
+ *   restore; `'deleted'` is refused like any other status.
+ * - **An open request has to exist.** An account suspended by an administrator for some other reason
+ *   is not a closure, and does not get an authenticated door here.
+ */
+async function authedOrClosed(kernel: Kernel, deps: CoreDeps, request: FastifyRequest): Promise<Closable> {
+  const principal = await deps.principals.resolve(request)
+  if (principal.kind !== 'anonymous' && principal.userId)
+    return { userId: principal.userId, instanceAdmin: principal.instanceAdmin, closed: false }
+
+  const session = await deps.auth.api.getSession({ headers: toHeaders(request) }).catch(() => null)
+  const sessionUserId = session?.user?.id
+  if (!sessionUserId) throw KernError.unauthorized()
+
+  const [row] = await kernel.database.db
+    .select({ id: userTable.id, status: userTable.status, instanceAdmin: userTable.instanceAdmin })
+    .from(userTable)
+    .where(eq(userTable.id, sessionUserId))
+    .limit(1)
+  if (row?.status !== 'suspended') throw KernError.unauthorized()
+  if (!(await deletion.pending(kernel, 'account', row.id))) throw KernError.unauthorized()
+  return { userId: row.id, instanceAdmin: row.instanceAdmin, closed: true }
 }
 
 /**
@@ -182,18 +234,28 @@ export function coreHttpRoutes(deps: CoreDeps): ModuleHttpRoute[] {
       })
       return reply.status(202).send(record)
     }),
+    /**
+     * Readable and cancellable **by the closed account itself**, which is the whole point of a
+     * window you are told you can change your mind in. `userId` is for an instance admin acting on
+     * a support request, the same asymmetry `POST` already has.
+     */
     route('GET', '/account/deletion', async ({ kernel, request }) => {
-      const principal = await authed(deps, request)
-      const record = await deletion.pending(kernel, 'account', principal.userId!)
+      const caller = await authedOrClosed(kernel, deps, request)
+      const { userId } = parse(z.object({ userId: z.uuid().optional() }), request.query)
+      const subject = userId ?? caller.userId
+      // a closed account speaks for itself and nobody else, admin or not
+      if (subject !== caller.userId && (caller.closed || !caller.instanceAdmin)) throw KernError.forbidden()
+      const record = await deletion.pending(kernel, 'account', subject)
       if (!record) throw KernError.notFound('Scheduled deletion')
       return record
     }),
-    route('DELETE', '/account/deletion', async ({ kernel, request }) => {
-      const principal = await authed(deps, request)
-      return deletion.cancelAccountDeletion(kernel, {
-        userId: principal.userId!,
-        actorId: principal.userId!,
-      })
+    route('DELETE', '/account/deletion', async ({ kernel, request, body }) => {
+      const caller = await authedOrClosed(kernel, deps, request)
+      const input = parse(z.object({ userId: z.uuid().optional() }), body)
+      const subject = input.userId ?? caller.userId
+      // a closed account speaks for itself and nobody else, admin or not
+      if (subject !== caller.userId && (caller.closed || !caller.instanceAdmin)) throw KernError.forbidden()
+      return deletion.cancelAccountDeletion(kernel, { userId: subject, actorId: caller.userId })
     }),
   ]
 }

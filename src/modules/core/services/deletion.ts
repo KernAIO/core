@@ -272,6 +272,11 @@ export async function scheduleAccountDeletion(
       'You are the only owner of a workspace that still has other members. Hand it over or delete it first.',
       'core.account.sole_owner',
     )
+  if (await isLastInstanceAdmin(kernel, input.userId))
+    throw KernError.conflict(
+      'You are the only administrator of this instance. Promote somebody else first.',
+      'core.account.last_instance_admin',
+    )
 
   const purgeAfter = new Date(Date.now() + GRACE_PERIOD_DAYS * 86_400_000)
   const [row] = await kernel.database.db
@@ -304,6 +309,32 @@ export async function scheduleAccountDeletion(
     purgeAfter: purgeAfter.toISOString(),
   })
   return ser(row)
+}
+
+/**
+ * Whether closing this account would leave the instance with nobody who can administer it.
+ *
+ * A closed account is suspended, and `principal.ts` answers ANONYMOUS for every credential a
+ * non-active user holds — so the last instance admin closing their own account locks the door and
+ * posts the key through it. On a self-hosted instance there is no support desk to call: the only
+ * way back is `KERN_ADMIN_EMAIL` at boot, or SQL. Refuse instead, and say what to do.
+ *
+ * Deliberately counts only *active* admins: a suspended or deleted one cannot sign in either, so
+ * counting them would let the last usable administrator close their account behind a colleague who
+ * has already gone.
+ */
+export async function isLastInstanceAdmin(kernel: Kernel, userId: string): Promise<boolean> {
+  const [me] = await kernel.database.db
+    .select({ instanceAdmin: user.instanceAdmin })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  if (!me?.instanceAdmin) return false
+  const [{ n } = { n: 0 }] = await kernel.database.db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(user)
+    .where(and(eq(user.instanceAdmin, true), eq(user.status, 'active')))
+  return n <= 1
 }
 
 /** Workspaces where this user is the only active owner and somebody else is still a member. */
