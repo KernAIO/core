@@ -415,3 +415,107 @@ describe('custom roles and scoped bindings', () => {
     ).toBe(false)
   })
 })
+
+/**
+ * What a guest can reach in a hosted module.
+ *
+ * `guest` is the role a customer picks for an external contractor, and both surfaces describing it
+ * promise scoping. It had none: `invitations.guestScopes` is validated, stored and serialised and
+ * nothing reads it, while `tracker` hands `guest` five project-scoped defaults — so a guest read and
+ * edited every project in the workspace. This drives the real hosted tracker, because that is where
+ * the promise was broken; asserting on `myPermissions` alone would have passed either way.
+ */
+describe('a guest in a hosted module', () => {
+  type TrackerApi = {
+    projects: {
+      create(i: Record<string, unknown>): Promise<{ id: string; key: string }>
+      list(i: Record<string, unknown>): Promise<{ items: Array<{ id: string }> }>
+    }
+    issues: {
+      create(i: Record<string, unknown>): Promise<{ id: string }>
+      get(i: Record<string, unknown>): Promise<{ id: string; title: string }>
+    }
+  }
+  const trackerFor = async (userId: string) =>
+    core.moduleApi('tracker', await core.principalOf(userId)) as TrackerApi
+
+  it('reads no project it was not given, and the one it was', async () => {
+    const f = await fixture('guestscope')
+    const owner = await trackerFor(f.user.owner.id)
+    const scoped = await owner.projects.create({
+      workspaceId: f.workspaceId,
+      key: `GA${n}`,
+      name: 'Scoped to the contractor',
+      template: 'software',
+    })
+    const other = await owner.projects.create({
+      workspaceId: f.workspaceId,
+      key: `GB${n}`,
+      name: 'Nothing to do with them',
+      template: 'software',
+    })
+    const mine = await owner.issues.create({
+      workspaceId: f.workspaceId,
+      projectId: scoped.id,
+      title: 'the work they were hired for',
+    })
+    const theirs = await owner.issues.create({
+      workspaceId: f.workspaceId,
+      projectId: other.id,
+      title: 'commercially sensitive',
+    })
+
+    // Before anything is granted: a guest holds no project permission at all.
+    const guest = await trackerFor(f.user.guest.id)
+    expect(await allowed(() => guest.issues.get({ workspaceId: f.workspaceId, issueId: theirs.id }))).toBe(
+      false,
+    )
+    expect(await allowed(() => guest.issues.get({ workspaceId: f.workspaceId, issueId: mine.id }))).toBe(
+      false,
+    )
+    const workspaceSet = await f.api.guest.workspaces.myPermissions({ workspaceId: f.workspaceId })
+    expect(workspaceSet.permissions).not.toContain('tracker.issue.view')
+    expect(workspaceSet.permissions).not.toContain('tracker.issue.edit')
+    // still an ordinary member of the workspace: the floor is about project data, not membership
+    expect(workspaceSet.permissions).toContain('core.workspace.view')
+
+    // Given one project explicitly, it reads that project and still nothing else.
+    await f.api.owner.workspaces.roles.bindings.set({
+      workspaceId: f.workspaceId,
+      binding: {
+        subjectType: 'user',
+        subjectId: f.user.guest.id,
+        roleId: null,
+        permissions: ['tracker.project.view', 'tracker.issue.view'],
+        scopeKind: 'project',
+        scopeId: scoped.id,
+        deny: false,
+      },
+    })
+    const bound = await trackerFor(f.user.guest.id)
+    const read = await bound.issues.get({ workspaceId: f.workspaceId, issueId: mine.id })
+    expect(read.title).toBe('the work they were hired for')
+    expect(await allowed(() => bound.issues.get({ workspaceId: f.workspaceId, issueId: theirs.id }))).toBe(
+      false,
+    )
+  })
+
+  it('keeps what a custom role gives it', async () => {
+    const f = await fixture('guestrole')
+    const role = await f.api.owner.workspaces.roles.create({
+      workspaceId: f.workspaceId,
+      name: `reviewers-${n++}`,
+      description: 'read every issue',
+      permissions: ['tracker.project.view', 'tracker.issue.view'],
+    })
+    await f.api.owner.workspaces.members.update({
+      workspaceId: f.workspaceId,
+      userId: f.user.guest.id,
+      patch: { roleIds: [role.id] },
+    })
+    const perms = await (await f.refresh('guest')).workspaces.myPermissions({ workspaceId: f.workspaceId })
+    expect(perms.role).toBe('guest')
+    // the floor must not undo an administrator's explicit grant
+    expect(perms.permissions).toContain('tracker.issue.view')
+  })
+})

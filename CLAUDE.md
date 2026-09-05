@@ -263,3 +263,29 @@ and a reference UI at `/api/docs`.
   `src/tests/reserved-slugs.test.ts` holds the set to an enumeration of each and, when the umbrella
   workspace is checked out around us, re-derives them from the shipped Caddy configs and shell's
   routes.
+- **A guest saw every project, and the obvious repair would not have changed that.** `guestScopes`
+  is validated on the invitation, written onto the invitation and the membership and serialised
+  back — and **no authorization code in the organisation reads it**, while `tracker` gives `guest`
+  five project-scoped defaults and `quire` three space-scoped ones. So the role a customer picks for
+  an external contractor read and edited every project in the workspace, under a shell string that
+  says "Sees only what they are explicitly given". Writing a project-scoped `role_binding` per
+  `guestScope` — the repair everyone reaches for — grants what was already granted and restrains
+  nothing: `Authz.can()` consults narrow-scope bindings only when the **caller** asks at a narrow
+  scope, falls through to `effective()` when it finds none, and `requires()` (what every module's
+  list procedure uses) always asks at workspace scope. Trace the call path before trusting the
+  mechanism.
+  What does bite is the other half of the same machinery: `effective()` applies **workspace-scoped**
+  bindings and honours `deny`. `bindingsFor` therefore prepends one synthetic
+  `builtin_role:guest / workspace / deny` binding carrying every permission whose `scope` is not
+  `workspace`, minus whatever the member's custom roles grant — `effective()` adds custom-role keys
+  *before* it applies bindings, so a blanket deny would silently undo an administrator's explicit
+  grant. A guest with a project binding still reads that project, because the chain `can()` walks
+  excludes workspace. Prepended, not appended: the last word on a key wins, so a stored
+  workspace-scoped allow still beats the floor.
+  Two things this deliberately does not do. It does not let a scoped guest **list** — `requires()`
+  asks at workspace scope, so `tracker.projects.list` refuses a guest whatever bindings it holds;
+  making that work means every module listing at workspace scope and filtering per project, which is
+  a change in the modules and not here. And it does not touch the modules' `defaultRoles`, which
+  still *declare* the guest access the floor removes — `module-tracker` and `module-quire` should
+  drop `guest` from their project/space-scoped permissions so the declaration and the behaviour
+  agree. Fail-closed first: an under-powered guest is a disappointment, a leaky one is a breach.

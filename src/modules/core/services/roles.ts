@@ -241,6 +241,49 @@ export async function customRolePermissions(
   return [...new Set(rows.flatMap((r) => r.permissions))]
 }
 
+/**
+ * What a guest holds at workspace level before anything is given to it: nothing that belongs to a
+ * project, a space or an object.
+ *
+ * A guest is the role a customer picks for an external contractor, and both surfaces that describe
+ * it promise scoping — shell's `roles_builtin_guest` says "Sees only what they are explicitly
+ * given". It was not true. `invitations.guestScopes` is validated, written onto the invitation and
+ * the membership and serialised back, and **no authorization code anywhere reads it**; meanwhile
+ * `tracker` gives `guest` five project-scoped defaults and `quire` three space-scoped ones, so
+ * every guest could read and edit every project and every space in the workspace.
+ *
+ * The obvious repair — write a project-scoped `role_binding` per `guestScope` — changes nothing,
+ * and it is worth writing down why. `Authz.can()` only consults narrow-scope bindings when the
+ * *caller* asks at a narrow scope, and when it finds none it falls through to `effective()`, which
+ * is the builtin defaults. `requires()`, which is what a module's list procedures use, always asks
+ * at workspace scope. So an allow-binding on the one project a guest was given never restrains the
+ * others: it grants what was already granted.
+ *
+ * The floor is the other half of that mechanism, and it is the half that bites. `effective()`
+ * applies **workspace-scoped** bindings and honours `deny`, so one synthetic deny here removes every
+ * project/space/object permission from a guest's workspace-level set — and `can()` at a project
+ * scope still prefers an explicit binding there, because the chain it walks excludes workspace.
+ * A guest with a project binding therefore reads that project and nothing else, which is what the
+ * interface has been promising all along; a guest with no binding reads nothing, which is the
+ * fail-closed answer and the right one to ship.
+ *
+ * Two deliberate limits:
+ *
+ * - **A custom role still grants.** The keys a member's own roles carry are excluded from the
+ *   floor, because `effective()` adds them before it applies bindings and a blanket deny would
+ *   silently undo an administrator's explicit grant. "Explicitly given" includes a role.
+ * - **A scoped guest still cannot *list*.** `requires()` asks at workspace scope, so
+ *   `tracker.projects.list` refuses a guest whatever bindings it holds. Fixing that means a module
+ *   listing at workspace scope and filtering per project, which is a change in every module rather
+ *   than here. Reading a named issue in a bound project already works.
+ */
+function guestFloor(kernel: Kernel, granted: ReadonlySet<string>): string[] {
+  return kernel.authz
+    .allPermissions()
+    .filter((p) => p.scope !== 'workspace' && p.scope !== 'instance' && !granted.has(p.key))
+    .map((p) => p.key)
+}
+
 export async function bindingsFor(
   kernel: Kernel,
   workspaceId: string,
@@ -262,7 +305,7 @@ export async function bindingsFor(
       .leftJoin(roles, eq(roles.id, roleBindings.roleId))
       .where(and(eq(roleBindings.workspaceId, workspaceId), subject)),
   )
-  return rows.map((r) => ({
+  const stored: Binding[] = rows.map((r) => ({
     subjectType: r.b.subjectType as Binding['subjectType'],
     subjectId: r.b.subjectId,
     permissions: [...new Set([...r.b.permissions, ...(r.rolePerms ?? [])])],
@@ -270,4 +313,20 @@ export async function bindingsFor(
     scopeId: r.b.scopeId,
     deny: r.b.deny,
   }))
+  if (role !== 'guest') return stored
+  const floor = guestFloor(kernel, new Set(await customRolePermissions(kernel, workspaceId, userId)))
+  if (!floor.length) return stored
+  // First, so a stored workspace-scoped allow for this guest is applied after it and wins:
+  // `effective()` walks the list in order and the last word on a key is the one that counts.
+  return [
+    {
+      subjectType: 'builtin_role',
+      subjectId: 'guest',
+      permissions: floor,
+      scopeKind: 'workspace',
+      scopeId: workspaceId,
+      deny: true,
+    },
+    ...stored,
+  ]
 }
