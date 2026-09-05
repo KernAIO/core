@@ -31,9 +31,19 @@ export async function workspaceSummaries(ctx: Ctx, userId: string): Promise<core
     .select({ w: workspaces, role: memberships.role })
     .from(memberships)
     .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
-    .where(
-      and(eq(memberships.userId, userId), eq(memberships.status, 'active'), isNull(workspaces.archivedAt)),
-    )
+    /**
+     * An archived workspace stays in the list, carrying `archivedAt` so a client can tell it apart.
+     *
+     * Filtering it out here is what made the 30-day undo unreachable. `scheduleWorkspaceDeletion`
+     * archives the row immediately, so the workspace vanished from `users.me()` the instant Delete
+     * was pressed; shell could then no longer resolve the slug and sent the owner to onboarding.
+     * A sole-workspace owner returning a minute later was shown "Create your first workspace" — the
+     * cancel route worked the whole time and nothing in the product could reach it, while the
+     * screen implied the data was already gone.
+     *
+     * The ordinary Archive button had the same shape and only deletion made it consequential.
+     */
+    .where(and(eq(memberships.userId, userId), eq(memberships.status, 'active')))
     .orderBy(asc(workspaces.name))
   const counts = await db
     .select({
@@ -67,6 +77,8 @@ export async function workspaceSummaries(ctx: Ctx, userId: string): Promise<core
     name: r.w.name,
     logoUrl: r.w.logoUrl,
     accentColor: r.w.accentColor,
+    // `Timestamp` is an ISO string on the wire, not a Date — the same conversion `workspaces.ts` does
+    archivedAt: r.w.archivedAt?.toISOString() ?? null,
     role: r.role as core.WorkspaceSummary['role'],
     unread: byWs.get(r.w.id)?.unread ?? 0,
     mentions: byWs.get(r.w.id)?.mentions ?? 0,

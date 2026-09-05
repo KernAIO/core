@@ -291,6 +291,41 @@ describe('workspace deletion', () => {
     expect(restored?.archivedAt, 'cancelling puts the workspace back').toBeNull()
   })
 
+  /**
+   * The undo has to be *reachable*, not merely implemented.
+   *
+   * The test above passes by reading the row, and passed for as long as the defect existed:
+   * scheduling archives the workspace immediately, `workspaceSummaries` filtered archived rows out,
+   * so the workspace disappeared from `users.me()` the instant Delete was pressed. Shell could no
+   * longer resolve the slug and redirected to onboarding — a sole-workspace owner coming back was
+   * shown "Create your first workspace", while the cancel route worked the whole time and nothing
+   * in the product could reach it. Asserting on the database cannot see that; asserting on what the
+   * session is told can.
+   */
+  it('leaves the workspace in the session, flagged, so the owner can still find the undo', async () => {
+    const doomed = await core.signUp({ name: 'Regretful' })
+    const slug = `regret-${stamp()}`
+    const wsId = (await doomed.api.workspaces.create({ name: 'Regret', slug })).id
+    const api = await core.apiOf(doomed.id)
+
+    const before = (await api.users.me()).workspaces.find((w) => w.id === wsId)
+    expect(before?.archivedAt ?? null, 'not archived before the request').toBeNull()
+
+    const res = await call('POST', `/api/core/workspaces/${wsId}/deletion`, doomed.token, {})
+    expect(res.status).toBe(202)
+
+    const during = (await core.apiOf(doomed.id)).users.me()
+    const listed = (await during).workspaces.find((w) => w.id === wsId)
+    expect(listed, 'the workspace is still in the switcher, so the slug still resolves').toBeTruthy()
+    expect(listed?.slug).toBe(slug)
+    expect(listed?.archivedAt, 'and it is flagged, so the client can offer the undo').toBeTruthy()
+
+    const cancelled = await call('DELETE', `/api/core/workspaces/${wsId}/deletion`, doomed.token)
+    expect(cancelled.status).toBe(200)
+    const after = (await (await core.apiOf(doomed.id)).users.me()).workspaces.find((w) => w.id === wsId)
+    expect(after?.archivedAt ?? null, 'and the flag clears when they take it').toBeNull()
+  })
+
   it('actually removes the rows when the grace period is over', async () => {
     const doomed = await core.signUp({ name: 'Leaving' })
     const wsId = (await doomed.api.workspaces.create({ name: 'Gone', slug: `gone-${stamp()}` })).id
