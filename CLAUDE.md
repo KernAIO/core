@@ -210,3 +210,10 @@ and a reference UI at `/api/docs`.
   maps blank to `undefined` for the whole object at once — per field is a rule the next field has to
   remember — and `src/tests/env.test.ts` walks every key the schema declares. Any service reading
   env this way has it; `KernelEnv` still does.
+- **A workspace slug loses to the reverse proxy as easily as to a page.** `RESERVED_SLUGS` was
+  written against `repos/shell/src/routes` alone, so `/collab*`, which Caddy has always sent to the
+  collab service, was free to take: the workspace was created and then answered on nothing outside
+  the container network. Both lists live in other repositories and drift in silence, so
+  `src/tests/reserved-slugs.test.ts` holds the set to an enumeration of each and, when the umbrella
+  workspace is checked out around us, re-derives them from the shipped Caddy configs and shell's
+  routes.
