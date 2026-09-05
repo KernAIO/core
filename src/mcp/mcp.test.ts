@@ -303,6 +303,149 @@ describe('the /mcp endpoint', () => {
   })
 })
 
+/**
+ * Every hosted module's read tools, called for real.
+ *
+ * The suite above only ever asserted which tools were **listed**, and listing is generated from the
+ * OpenAPI document, so it stayed green while every call failed. `executeTool` substituted the
+ * connection's workspace into a `{workspaceId}` path placeholder — which no module's template
+ * contains — and then skipped `workspaceId` when building the query string, where every module
+ * actually wants it: 142 of the 190 read tools answered
+ * `400 {"code":"BAD_REQUEST","issues":[{"path":["workspaceId"]}]}`.
+ *
+ * So this calls one generated GET tool per hosted module, through `/mcp`, and reads the status the
+ * module answered out of the tool result. A tool whose only required argument is `workspaceId` is
+ * the honest sample: nothing else has to be invented, so a failure is the plumbing and not the
+ * fixture.
+ */
+describe('the generated read tools of every hosted module', () => {
+  const MODULES = ['core', 'tracker', 'quire', 'hr', 'inventory', 'billing'] as const
+  let readToken: string
+  /** every listed tool, with the input schema the catalog generated */
+  let listed: Array<{ name: string; inputSchema?: { required?: string[] } }>
+
+  beforeAll(async () => {
+    const client = await registerClient()
+    await enableMcp(true)
+    const { redirectUrl } = await consent(
+      client.client_id,
+      MODULES.map((m) => `${m}:read`),
+    )
+    const out = await exchange({
+      grant_type: 'authorization_code',
+      code: new URL(redirectUrl).searchParams.get('code')!,
+      client_id: client.client_id,
+      redirect_uri: 'http://localhost:8765/callback',
+      code_verifier: 'unused-verifier',
+    })
+    readToken = out.json.access_token!
+    const res = await mcp('tools/list', {}, readToken)
+    listed = (res.json().result?.tools ?? []) as unknown as typeof listed
+  }, 120_000)
+
+  it.each(MODULES)('answers a %s read tool with 200 rather than a missing workspaceId', async (module) => {
+    const candidate = listed.find(
+      (t) =>
+        t.name.startsWith(`${module}_`) &&
+        (t.inputSchema?.required ?? []).length === 1 &&
+        t.inputSchema?.required?.[0] === 'workspaceId',
+    )
+    expect(candidate, `${module} exposes a read tool taking only workspaceId`).toBeDefined()
+
+    const call = await mcp('tools/call', { name: candidate!.name, arguments: {} }, readToken)
+    expect(call.statusCode).toBe(200)
+    const text = call.json().result?.content?.[0]?.text ?? ''
+    const answered = JSON.parse(text) as { status: number; body: unknown }
+    expect(answered.status, `${candidate!.name} answered ${answered.status}: ${text.slice(0, 300)}`).toBe(200)
+    expect(call.json().result?.isError).toBeFalsy()
+  })
+
+  /**
+   * The workspace is the connection's, not the model's. A tool call naming somebody else's
+   * workspace must not reach it — the query string the model supplied is overwritten, not merged.
+   */
+  it('ignores a workspaceId the model supplies', async () => {
+    const candidate = listed.find(
+      (t) =>
+        t.name.startsWith('tracker_') &&
+        (t.inputSchema?.required ?? []).length === 1 &&
+        t.inputSchema?.required?.[0] === 'workspaceId',
+    )!
+    const other = await core.signUp({ name: 'Another owner' })
+    const elsewhere = await other.api.workspaces.create({
+      name: 'Elsewhere',
+      slug: `elsewhere-${Date.now().toString(36)}`,
+    })
+    const call = await mcp(
+      'tools/call',
+      { name: candidate.name, arguments: { workspaceId: elsewhere.id } },
+      readToken,
+    )
+    const answered = JSON.parse(call.json().result?.content?.[0]?.text ?? '{}') as { status: number }
+    // 200 from *our* workspace, not 403 from theirs: the argument was replaced before it was sent
+    expect(answered.status).toBe(200)
+  })
+})
+
+/**
+ * The token is a key to what was consented to, everywhere — not only inside `/mcp`.
+ *
+ * `/mcp` has always held a tool call to the granted scopes, but the token itself resolved into the
+ * user's whole principal, so an AI client could put the same `kmt_…` bearer on
+ * `POST /api/tracker/projects` and act with everything its owner may do. A read-only grant on one
+ * module was a full read-write credential on every module the instance hosts.
+ */
+describe('an MCP access token used directly against the module APIs', () => {
+  let token: string
+
+  const call = (method: 'GET' | 'POST', url: string, payload?: Record<string, unknown>) =>
+    core.service.app!.inject({
+      method,
+      url,
+      headers: { authorization: `Bearer ${token}` },
+      payload,
+    })
+
+  beforeAll(async () => {
+    const client = await registerClient()
+    await enableMcp(true)
+    const { redirectUrl } = await consent(client.client_id, ['tracker:read'])
+    const out = await exchange({
+      grant_type: 'authorization_code',
+      code: new URL(redirectUrl).searchParams.get('code')!,
+      client_id: client.client_id,
+      redirect_uri: 'http://localhost:8765/callback',
+      code_verifier: 'unused-verifier',
+    })
+    token = out.json.access_token!
+  }, 120_000)
+
+  it('reads the module it was granted', async () => {
+    const res = await call('GET', `/api/tracker/projects?workspaceId=${workspaceId}`)
+    expect(res.statusCode).toBe(200)
+  })
+
+  it('cannot write the module it was granted read on', async () => {
+    const res = await call('POST', '/api/tracker/projects', {
+      workspaceId,
+      key: 'MCP',
+      name: 'Written by a read-only token',
+      template: 'software',
+    })
+    expect(res.statusCode).toBe(401)
+    // and nothing was created
+    const after = await call('GET', `/api/tracker/projects?workspaceId=${workspaceId}`)
+    expect(after.body).not.toContain('Written by a read-only token')
+  })
+
+  it('cannot read a module it was not granted', async () => {
+    const res = await call('GET', `/api/hr/people?workspaceId=${workspaceId}`)
+    expect(res.statusCode).toBe(401)
+    const core401 = await call('GET', `/api/core/workspaces/${workspaceId}`)
+    expect(core401.statusCode).toBe(401)
+  })
+})
+
 describe('admin surfaces', () => {
   it('lists connected clients with token counts', async () => {
     const clients = await api.mcp.clients.list({ workspaceId })

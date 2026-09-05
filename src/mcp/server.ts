@@ -425,8 +425,13 @@ async function executeTool(
 ): Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }> {
   try {
     const query = new URLSearchParams()
+    let pathTookWorkspaceId = false
     const path = tool.template.replace(/\{(\w+)\}/g, (_, name: string) => {
-      if (name === 'workspaceId') return encodeURIComponent(ctx.workspaceId)
+      if (name === 'workspaceId') {
+        pathTookWorkspaceId = true
+        delete args.workspaceId
+        return encodeURIComponent(ctx.workspaceId)
+      }
       const v = args[name]
       if (v === undefined) return ''
       delete args[name]
@@ -436,6 +441,26 @@ async function executeTool(
       if (k === 'data' || k === 'workspaceId' || v === undefined || v === null) continue
       query.set(k, typeof v === 'object' ? JSON.stringify(v) : String(v))
     }
+    /**
+     * The workspace comes from the connection, never from the model — including when it belongs in
+     * the query string, which is where nearly every module puts it.
+     *
+     * The substitution above only fires for a path template that contains `{workspaceId}`, and
+     * almost none do: generating the real documents, tracker has 0 such GET paths and 43 that take
+     * `workspaceId` as a **required query parameter**, hr 59, quire 26, inventory 10. The loop above
+     * skips `workspaceId` so that the model cannot aim a tool at another tenant — and with nothing
+     * putting it back, the request went out without it and the module answered
+     * `400 BAD_REQUEST {"issues":[{"path":["workspaceId"]}]}`. 142 of 190 read tools were dead that
+     * way. Setting it here after the loop keeps the guarantee (the connection's workspace wins over
+     * anything the model supplied) and makes the request valid.
+     *
+     * Only for an operation that actually declares the parameter: an operation that takes no
+     * workspace — `users.me`, the health documents — must not be handed one.
+     */
+    const declaresWorkspaceId = Boolean(
+      (tool.inputSchema.properties as Record<string, unknown> | undefined)?.workspaceId,
+    )
+    if (!pathTookWorkspaceId && declaresWorkspaceId) query.set('workspaceId', ctx.workspaceId)
     const qs = query.toString()
     const fullPath = `${path}${qs ? `?${qs}` : ''}`
     const body = args.data !== undefined ? JSON.stringify(args.data) : undefined
