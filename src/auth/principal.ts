@@ -5,7 +5,7 @@ import type { FastifyRequest } from 'fastify'
 import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
 import type { McpOauth } from '../mcp/oauth.js'
 import { MODULE_ID } from '../modules/core/schema/base.js'
-import { memberships, user } from '../modules/core/schema/index.js'
+import { memberships, session as sessionTable, user } from '../modules/core/schema/index.js'
 import { audienceAllows, CAPABILITY_AUDIENCE_KEY } from '../modules/core/services/capability-audience.js'
 import { getModuleSettings } from '../modules/core/services/modules.js'
 import type { Auth } from './auth.js'
@@ -60,6 +60,16 @@ export interface PrincipalResolver {
   fromToken(token: string, need?: McpNeed): Promise<Principal>
   fromUserId(userId: string): Promise<Principal>
   fromUser(u: UserLike, kind?: Principal['kind']): Promise<Principal>
+  /**
+   * The user behind a **genuine interactive session** on this request — one this instance issued
+   * and still holds a row for — whatever that user's status is. Null for every other credential.
+   *
+   * This exists for the one route that has to authenticate a *suspended* user (the undo on a closed
+   * account, in `http-routes.ts`), where `resolve` correctly answers ANONYMOUS and the question
+   * underneath is "did a person sign in, or is this a machine credential?". Asking Better Auth
+   * directly does not answer it: see `sessionRow` for what `getSession` really means.
+   */
+  sessionUserId(req: FastifyRequest): Promise<string | null>
   /** drop cached memberships (null = everyone) */
   invalidate(userIds: string[] | null): void
 }
@@ -183,6 +193,40 @@ export function createPrincipalResolver(opts: {
       return null
     }
   }
+
+  /**
+   * The session row behind a request, or null — which is a stricter question than `getSession`.
+   *
+   * `auth.api.getSession` answers "is there **any** credential in these headers Better Auth is
+   * willing to turn into a session?", and that is not the same thing. The api-key plugin runs with
+   * `enableSessionForAPIKeys`, which registers a `before` hook on `/get-session`: given an
+   * `x-api-key` header it validates the key, loads its owner and returns a session object it made
+   * up on the spot — `session.id` is the API key's id, `session.token` is the key itself, and no
+   * row in `sessions` was ever involved. It does not read `users.status` either. So a guard written
+   * to admit only a person who signed in admitted any credential Better Auth would manufacture one
+   * from, and `DELETE /api/core/account/deletion` carrying nothing but `x-api-key` reopened its own
+   * closed account — with a **read**-scoped key as readily as a writing one.
+   *
+   * Hence two barriers rather than a fix at the call site. Better Auth is handed only the two
+   * headers a session actually travels in, so it never sees a credential that is not one; and the
+   * session it returns has to name a live row this instance issued, so anything manufactured is
+   * refused however it arrived and whichever plugin made it. The row is matched on `token`, not on
+   * `id`: `sessions.id` is a `uuid` column and a made-up id need not be one, and a query that
+   * throws would be a 500 where a refusal belongs.
+   */
+  async function sessionRow(req: FastifyRequest): Promise<{ userId: string } | null> {
+    const s = await auth.api.getSession({ headers: sessionHeaders(req) }).catch(() => null)
+    const claimed = s?.session as { id?: string; token?: string } | undefined
+    if (!s?.user?.id || !claimed?.token || !claimed.id) return null
+    const [row] = await db
+      .select({ id: sessionTable.id, userId: sessionTable.userId, expiresAt: sessionTable.expiresAt })
+      .from(sessionTable)
+      .where(eq(sessionTable.token, claimed.token))
+      .limit(1)
+    if (!row || row.id !== claimed.id || row.userId !== s.user.id) return null
+    if (row.expiresAt.getTime() <= Date.now()) return null
+    return { userId: row.userId }
+  }
   /**
    * An MCP access token (`kmt_…`) acts for the user who consented — but only inside the one
    * workspace the consent named. Filtering the memberships here is what enforces that boundary
@@ -267,6 +311,9 @@ export function createPrincipalResolver(opts: {
     fromToken,
     fromUserId,
     fromUser,
+    async sessionUserId(req) {
+      return (await sessionRow(req))?.userId ?? null
+    },
     invalidate(userIds) {
       if (!userIds) cache.clear()
       else for (const k of cache.keys()) if (userIds.some((u) => k.startsWith(`${u}:`))) cache.delete(k)
@@ -282,7 +329,6 @@ export function createPrincipalResolver(opts: {
         if (typeof onBehalf === 'string' && onBehalf) return fromUserId(onBehalf)
         return systemPrincipal(name)
       }
-      const headers = toHeaders(req)
       const p = await (async () => {
         // 2. API key header
         const apiKeyHeader = req.headers['x-api-key']
@@ -296,8 +342,9 @@ export function createPrincipalResolver(opts: {
           if (token.startsWith('kmt_')) return mcpPrincipal(token, needForRequest(req))
           return fromToken(token)
         }
-        // 4. cookie session
-        if (req.headers.cookie) return (await fromSession(headers)) ?? ANONYMOUS
+        // 4. cookie session — `sessionHeaders`, not `headers`: Better Auth must not be handed a
+        // credential that is not a session and asked to find one. See `sessionRow`.
+        if (req.headers.cookie) return (await fromSession(sessionHeaders(req))) ?? ANONYMOUS
         return ANONYMOUS
       })()
       /**
@@ -318,6 +365,24 @@ export function toHeaders(req: FastifyRequest): Headers {
     if (v === undefined) continue
     if (Array.isArray(v)) for (const x of v) h.append(k, x)
     else h.append(k, v)
+  }
+  return h
+}
+
+/**
+ * The two headers a Better Auth **session** travels in, and nothing else.
+ *
+ * Anything asking Better Auth about a session gets these rather than the whole request. Handing it
+ * every header is handing it every credential — `x-api-key` above all, which its api-key plugin
+ * turns into a session before `/get-session` looks anything up. `authorization` stays because the
+ * `bearer` plugin is how a client without a cookie jar carries the same session token; a token in
+ * it that is not a session simply matches nothing.
+ */
+export function sessionHeaders(req: FastifyRequest): Headers {
+  const h = new Headers()
+  for (const name of ['cookie', 'authorization'] as const) {
+    const v = req.headers[name]
+    if (typeof v === 'string' && v) h.append(name, v)
   }
   return h
 }

@@ -27,7 +27,6 @@ import { httpStatusFor, KernError, type Kernel, type ModuleHttpRoute } from '@ke
 import { eq } from 'drizzle-orm'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
-import { toHeaders } from '../../auth/principal.js'
 import type { CoreDeps } from './deps.js'
 import { user as userTable } from './schema/index.js'
 import * as deletion from './services/deletion.js'
@@ -91,14 +90,22 @@ interface Closable {
  *   restore; `'deleted'` is refused like any other status.
  * - **An open request has to exist.** An account suspended by an administrator for some other reason
  *   is not a closure, and does not get an authenticated door here.
+ *
+ * "Sessions only" is `principals.sessionUserId`, and it has to be, because the first version of
+ * this asked `auth.api.getSession` — which does not answer that question. It answers "is there any
+ * credential in these headers Better Auth will turn into a session", and with the api-key plugin's
+ * `enableSessionForAPIKeys` the answer for an `x-api-key` header is yes: a session manufactured in
+ * a `before` hook, for a user whose status it never reads. So the very machine credential this
+ * comment rules out reopened its own closed account — a **read**-scoped key too, which cannot write
+ * anything else on the instance. What makes a session a session is a live row this instance issued;
+ * that check lives in `principal.ts` with every other credential path, not here.
  */
 async function authedOrClosed(kernel: Kernel, deps: CoreDeps, request: FastifyRequest): Promise<Closable> {
   const principal = await deps.principals.resolve(request)
   if (principal.kind !== 'anonymous' && principal.userId)
     return { userId: principal.userId, instanceAdmin: principal.instanceAdmin, closed: false }
 
-  const session = await deps.auth.api.getSession({ headers: toHeaders(request) }).catch(() => null)
-  const sessionUserId = session?.user?.id
+  const sessionUserId = await deps.principals.sessionUserId(request)
   if (!sessionUserId) throw KernError.unauthorized()
 
   const [row] = await kernel.database.db

@@ -318,6 +318,21 @@ and a reference UI at `/api/docs`.
   *active* instance admin: on a self-hosted instance that is the door locking from the inside, with
   `KERN_ADMIN_EMAIL` at boot or SQL as the only way back. Any promise made in the terms deserves a
   test that drives the HTTP route, not the function beneath it.
+- **`auth.api.getSession` does not answer "is there a session"; it answers "is there any credential
+  here Better Auth will make one from".** The fix above read the first sentence and shipped the
+  second: `authedOrClosed` called it with the whole request, and the api-key plugin's
+  `enableSessionForAPIKeys` hook manufactured a session out of the `x-api-key` header before
+  `/get-session` looked anything up — session id = the key's id, no row in `sessions`, and no
+  glance at `users.status`. So the machine credential the comment three lines above ruled out
+  reopened its own closed account: `DELETE /api/core/account/deletion` carrying only `x-api-key`
+  answered **200** and set the row back to `active`, with a **read**-scoped key as readily as a
+  writing one — while `principals.resolve()` was correctly answering ANONYMOUS for the very same
+  request. A guard is only as narrow as the question it asks a library. `principals.sessionUserId`
+  asks the right one: the session must name a **live row this instance issued**, matched on `token`
+  (`sessions.id` is a `uuid` column, and a made-up id need not be one — a query that throws is a
+  500 where a refusal belongs). `sessionHeaders()` is the second barrier: anything asking Better
+  Auth about a session hands it `cookie` and `authorization` and nothing else, because handing it
+  every header is handing it every credential.
 - **Do not pass `template` on `mail.send` from here — it would undo the localisation.** The mail
   module ships five branded MJML templates named exactly as core's messages (`magic-link`,
   `reset-password`, `verify-email`, `invitation`, `notification-digest`), and `SendMailInput` takes
