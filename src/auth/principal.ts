@@ -172,18 +172,33 @@ export function createPrincipalResolver(opts: {
    * workspace the consent named. Filtering the memberships here is what enforces that boundary
    * everywhere at once: every downstream membership check sees a principal that belongs to no other
    * workspace, however broad the user's own roles are.
+   *
+   * The scopes travel back with it so `resolve` can hold the request to them. They are not on the
+   * `Principal` because `Principal` is `@kernhq/contracts`, and a field there is a platform change;
+   * the enforcement site is one function away instead.
    */
-  async function fromMcpToken(tokenValue: string): Promise<Principal | null> {
+  async function fromMcpToken(
+    tokenValue: string,
+  ): Promise<{ principal: Principal; scopes: string[] } | null> {
     const token = await mcp?.verifyAccessToken(tokenValue)
     if (!token) return null
     const p = await fromUserId(token.userId)
     if (p.kind === 'anonymous') return null
     const scoped = p.memberships.filter((m) => m.workspaceId === token.workspaceId && m.status === 'active')
     if (scoped.length === 0) return null
-    return { ...p, kind: 'user', memberships: scoped }
+    return { principal: { ...p, kind: 'user', memberships: scoped }, scopes: token.scopes }
+  }
+
+  /** `/api/<prefix>/…` → the module hosted here under that prefix, or null for anything else. */
+  function moduleForPath(pathname: string): string | null {
+    const prefix = /^\/api\/([^/]+)/.exec(pathname)?.[1]
+    if (!prefix) return null
+    for (const mod of kernel.registry.all())
+      if ((mod.definition.apiPrefix ?? mod.definition.id) === prefix) return mod.definition.id
+    return null
   }
   async function fromToken(token: string): Promise<Principal> {
-    if (token.startsWith('kmt_')) return (await fromMcpToken(token)) ?? ANONYMOUS
+    if (token.startsWith('kmt_')) return (await fromMcpToken(token))?.principal ?? ANONYMOUS
     const h = new Headers({ authorization: `Bearer ${token}` })
     return (
       (await fromSession(h)) ??
@@ -191,6 +206,30 @@ export function createPrincipalResolver(opts: {
       (await fromApiKey(token)) ??
       ANONYMOUS
     )
+  }
+
+  /**
+   * An MCP token authenticates only for what its consent screen said, and only over the module APIs.
+   *
+   * The scopes a person ticks are `<module>:read` and `<module>:write`, and `/mcp` has always held
+   * tool calls to them — but nothing held the *token* to them. It resolved into the user's full
+   * principal, so an AI client granted read-only access to one module could `POST /api/tracker`,
+   * `/api/hr`, `/api/quire`, `/api/billing` and `/api/inventory` with everything its owner may do.
+   * The consent screen was describing something that was never enforced.
+   *
+   * Out of scope is `ANONYMOUS`, not `forbidden`, for the same reason a read-only API key is
+   * (below): the credential simply does not authenticate this request, which is what every other
+   * unusable credential here produces. A path that is not a module API — Better Auth, `/api/health`,
+   * `/mcp` itself, which verifies its own bearer — authenticates nobody at all: an MCP token is a
+   * key to module data and to nothing else.
+   */
+  async function mcpPrincipalFor(req: FastifyRequest, token: string): Promise<Principal> {
+    const out = await fromMcpToken(token)
+    if (!out) return ANONYMOUS
+    const moduleId = moduleForPath((req.url ?? '').split('?')[0] ?? '')
+    if (!moduleId) return ANONYMOUS
+    const need = `${moduleId}:${READ_METHODS.has(req.method) ? 'read' : 'write'}`
+    return out.scopes.includes(need) ? out.principal : ANONYMOUS
   }
 
   return {
@@ -223,6 +262,7 @@ export function createPrincipalResolver(opts: {
         if (typeof authz === 'string' && authz.toLowerCase().startsWith('bearer ')) {
           const token = authz.slice(7).trim()
           if (!token) return ANONYMOUS
+          if (token.startsWith('kmt_')) return mcpPrincipalFor(req, token)
           return fromToken(token)
         }
         // 4. cookie session
