@@ -198,14 +198,20 @@ export function createPrincipalResolver(opts: {
    * The session row behind a request, or null — which is a stricter question than `getSession`.
    *
    * `auth.api.getSession` answers "is there **any** credential in these headers Better Auth is
-   * willing to turn into a session?", and that is not the same thing. The api-key plugin runs with
-   * `enableSessionForAPIKeys`, which registers a `before` hook on `/get-session`: given an
-   * `x-api-key` header it validates the key, loads its owner and returns a session object it made
-   * up on the spot — `session.id` is the API key's id, `session.token` is the key itself, and no
-   * row in `sessions` was ever involved. It does not read `users.status` either. So a guard written
-   * to admit only a person who signed in admitted any credential Better Auth would manufacture one
-   * from, and `DELETE /api/core/account/deletion` carrying nothing but `x-api-key` reopened its own
-   * closed account — with a **read**-scoped key as readily as a writing one.
+   * willing to turn into a session?", and that is not the same thing. The api-key plugin ran with
+   * `enableSessionForAPIKeys` when this was written, which registers a `before` hook on
+   * `/get-session`: given an `x-api-key` header it validates the key, loads its owner and returns a
+   * session object it made up on the spot — `session.id` is the API key's id, `session.token` is
+   * the key itself, and no row in `sessions` was ever involved. It does not read `users.status`
+   * either. So a guard written to admit only a person who signed in admitted any credential Better
+   * Auth would manufacture one from, and `DELETE /api/core/account/deletion` carrying nothing but
+   * `x-api-key` reopened its own closed account — with a **read**-scoped key as readily as a
+   * writing one.
+   *
+   * That option is off now (`auth.ts` says why, and it was doing far worse elsewhere), which is a
+   * reason to keep this check rather than to drop it: the option is one line away from coming back,
+   * plugins are added, and a guard that depends on a library's configuration staying a particular
+   * way is not a guard.
    *
    * Hence two barriers rather than a fix at the call site. Better Auth is handed only the two
    * headers a session actually travels in, so it never sees a credential that is not one; and the
