@@ -11,7 +11,7 @@ import { eq } from 'drizzle-orm'
 import type { CoreEnv } from '../env.js'
 import { authSchema, user as userTable } from '../modules/core/schema/auth.js'
 import { composeEmail, type EmailLocale, emailCopy, emailLocale } from './emails.js'
-import type { Mailer } from './mail.js'
+import { type Mailer, type MailMessage, MailNotConfiguredError } from './mail.js'
 import { mayCreateAccount, SIGNUP_CLOSED } from './signup.js'
 
 export interface AuthDeps {
@@ -146,6 +146,26 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
       return fallbackLocale
     }
   }
+  /**
+   * Sends, and turns "this instance cannot send mail at all" into an answer the browser can show.
+   *
+   * Without this the request either succeeds (the old log-and-return mailer) or fails as a bare
+   * 500; both leave the person staring at "Check your inbox" for a message that does not exist.
+   */
+  const sendAuthMail = async (msg: MailMessage): Promise<void> => {
+    try {
+      await mailer.send(msg)
+    } catch (err) {
+      if (err instanceof MailNotConfiguredError)
+        throw new APIError('SERVICE_UNAVAILABLE', {
+          message:
+            'This instance cannot send email yet, so the link could not be delivered. Ask an administrator to configure outbound mail.',
+          code: 'MAIL_NOT_CONFIGURED',
+        })
+      throw err
+    }
+  }
+
   const auth = betterAuth({
     appName: 'Kern',
     baseURL,
@@ -232,7 +252,7 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
       requireEmailVerification: false,
       async sendResetPassword({ user, url }) {
         const locale = localeOf(user)
-        await mailer.send({
+        await sendAuthMail({
           to: user.email,
           ...composeEmail(locale, emailCopy(locale).resetPassword({ name: user.name }), url),
         })
@@ -243,7 +263,7 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
       autoSignInAfterVerification: true,
       async sendVerificationEmail({ user, url }) {
         const locale = localeOf(user)
-        await mailer.send({
+        await sendAuthMail({
           to: user.email,
           ...composeEmail(locale, emailCopy(locale).verifyEmail({ name: user.name }), url),
         })
@@ -318,7 +338,7 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
       magicLink({
         async sendMagicLink({ email, url }) {
           const locale = await localeOfEmail(email)
-          await mailer.send({
+          await sendAuthMail({
             to: email,
             ...composeEmail(
               locale,

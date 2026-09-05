@@ -1,7 +1,7 @@
 import type { Kernel } from '@kernhq/kernel'
 import { describe, expect, it, vi } from 'vitest'
 import type { CoreEnv } from '../env.js'
-import { createMailer } from './mail.js'
+import { createMailer, MailNotConfiguredError, reportMailReadiness } from './mail.js'
 
 /**
  * The shape core hands the mail module, pinned.
@@ -70,14 +70,55 @@ describe('core → mail module', () => {
     expect(calls[0]!.headers).toEqual({ 'Content-Language': 'fa' })
   })
 
-  it('falls back to SMTP only when the module refuses', async () => {
+  /**
+   * With no relay at all the mailer used to log the message and return, so a fresh self-hosted
+   * instance showed "Check your inbox — we sent a sign-in link" for a message that was never sent.
+   * In production that is now a failure the caller can show; in development it stays a log line,
+   * because a laptop with no Mailpit running is the ordinary case and not a broken instance.
+   */
+  it('refuses to report success when nothing can send, in production', async () => {
     const kernel = fakeKernel(async () => {
       throw new Error('Input validation failed')
     })
     const mailer = createMailer(kernel, env)
-    await mailer.send({ to: 'a@example.test', subject: 's', text: 't' })
-    // no SMTP_URL either, so the message is logged as not sent — and the warning names the reason
+    await expect(mailer.send({ to: 'a@example.test', subject: 's', text: 't' })).rejects.toBeInstanceOf(
+      MailNotConfiguredError,
+    )
     expect(kernel.log.warn).toHaveBeenCalled()
+    expect(kernel.log.error).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('not sent'))
+  })
+
+  it('still only logs outside production', async () => {
+    const kernel = fakeKernel(async () => ({}))
+    const dev = { ...env, NODE_ENV: 'development' } as unknown as CoreEnv
+    const mailer = createMailer(kernel, dev)
+    await mailer.send({ to: 'a@example.test', subject: 's', text: 't' })
     expect(kernel.log.info).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('not sent'))
+  })
+})
+
+describe('mail readiness', () => {
+  it('is an error in production and a warning on a laptop', () => {
+    const unreachable = () =>
+      ({
+        broker: { has: () => false },
+        nats: null,
+        log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() },
+      }) as unknown as Kernel
+
+    const prod = unreachable()
+    reportMailReadiness(prod, env)
+    expect(prod.log.error).toHaveBeenCalled()
+
+    const dev = unreachable()
+    reportMailReadiness(dev, { ...env, NODE_ENV: 'development' } as unknown as CoreEnv)
+    expect(dev.log.error).not.toHaveBeenCalled()
+    expect(dev.log.warn).toHaveBeenCalled()
+
+    // configured: nothing to say
+    const configured = unreachable()
+    reportMailReadiness(configured, { ...env, SMTP_URL: 'smtp://localhost:1025' } as unknown as CoreEnv)
+    expect(configured.log.error).not.toHaveBeenCalled()
+    expect(configured.log.warn).not.toHaveBeenCalled()
   })
 })

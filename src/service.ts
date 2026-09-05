@@ -6,7 +6,7 @@ import { quireModule } from '@kernhq/module-quire/server'
 import { trackerModule } from '@kernhq/module-tracker/server'
 import type { FastifyInstance } from 'fastify'
 import { createAuth } from './auth/auth.js'
-import { createMailer } from './auth/mail.js'
+import { createMailer, reportMailReadiness } from './auth/mail.js'
 import { createPrincipalResolver } from './auth/principal.js'
 import { bootstrap } from './bootstrap.js'
 import { type CoreEnv, loadCoreEnv } from './env.js'
@@ -77,6 +77,9 @@ export async function createCoreService(opts: CoreServiceOptions = {}): Promise<
   deps.principals = createPrincipalResolver({ kernel, auth: deps.auth, mcp: mcp.oauth })
 
   await kernel.start()
+  // After start, because whether `mail.send` is reachable is not known until the modules are
+  // registered and NATS is connected.
+  reportMailReadiness(kernel, env)
   await bootstrap(kernel, deps)
 
   let app: FastifyInstance | null = null

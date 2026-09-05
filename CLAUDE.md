@@ -210,6 +210,18 @@ and a reference UI at `/api/docs`.
   maps blank to `undefined` for the whole object at once — per field is a rule the next field has to
   remember — and `src/tests/env.test.ts` walks every key the schema declares. Any service reading
   env this way has it; `KernelEnv` still does.
+- **"Sent" has to mean sent.** With no `SMTP_URL` and no mail module reachable, the mailer logged
+  the message and returned normally — so every "Check your inbox, we sent you a link" screen on a
+  fresh self-hosted instance was a lie and the person waited for a message that did not exist. In
+  **production** that is now a `MailNotConfiguredError`; outside production it stays a log line,
+  because a laptop with no Mailpit running is the ordinary case and the test harness depends on it.
+  Two things the fix cannot reach, and both are worth knowing: Better Auth runs
+  `sendVerificationEmail` through `runInBackgroundOrAwait`, which **swallows** the throw and logs
+  it, so a sign-up still answers 200 and the shell still says "check your inbox" — only the magic
+  link and the password reset surface the failure (as a 503 with `MAIL_NOT_CONFIGURED`, converted in
+  `createAuth`). Refusing to *boot* would be worse than either: an instance without a relay is
+  reachable and useful, and Kern Cloud itself has run that way. `reportMailReadiness` says so once,
+  loudly, at boot.
 - **A per-IP rate limiter that cannot resolve an IP is one bucket for the whole instance.** Better
   Auth refuses to believe an `X-Forwarded-For` with more than one entry unless it is told which hops
   to trust — which is right, since the leftmost entry is whatever the client typed — and then falls
