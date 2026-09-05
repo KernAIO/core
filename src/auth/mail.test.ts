@@ -57,6 +57,19 @@ describe('core → mail module', () => {
     expect(calls[0]!.workspaceId).toBe('ws-1')
   })
 
+  it('carries the recipient’s language as Content-Language', async () => {
+    const calls: Array<Record<string, unknown>> = []
+    const mailer = createMailer(
+      fakeKernel(async (_name, input) => {
+        calls.push(input as Record<string, unknown>)
+        return {}
+      }),
+      env,
+    )
+    await mailer.send({ to: 'a@example.test', subject: 'تأیید', text: 'x', locale: 'fa' })
+    expect(calls[0]!.headers).toEqual({ 'Content-Language': 'fa' })
+  })
+
   it('falls back to SMTP only when the module refuses', async () => {
     const kernel = fakeKernel(async () => {
       throw new Error('Input validation failed')

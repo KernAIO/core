@@ -6,6 +6,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { config as loadDotenv } from 'dotenv'
 import { z } from 'zod'
+import { DEFAULT_EMAIL_LOCALE, EMAIL_LOCALES } from './auth/emails.js'
 
 if (process.env.NODE_ENV !== 'production') {
   const here = dirname(fileURLToPath(import.meta.url))
@@ -47,6 +48,12 @@ export const CoreEnvFields = z.object({
   BETTER_AUTH_URL: z.string().url().optional(),
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().default('Kern <no-reply@localhost>'),
+  /**
+   * The language mail goes out in when the recipient has no account yet, or has never chosen one:
+   * an invitation to a stranger, or a magic link for an address nobody has signed up with. A
+   * recipient Kern knows is written to in *their* locale, whatever this says.
+   */
+  KERN_DEFAULT_LOCALE: z.enum(EMAIL_LOCALES).default(DEFAULT_EMAIL_LOCALE),
   KERN_ADMIN_EMAIL: z.string().email().optional(),
   KERN_ADMIN_PASSWORD: z.string().min(8).optional(),
   KERN_ADMIN_NAME: z.string().default('Admin'),

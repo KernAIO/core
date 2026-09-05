@@ -4,7 +4,7 @@ import { coreEvents } from '@kernhq/contracts/core'
 import { KernError } from '@kernhq/kernel'
 import { and, desc, eq, inArray, lt } from 'drizzle-orm'
 import type { z } from 'zod'
-import { renderEmail } from '../../../auth/mail.js'
+import { composeEmail, emailCopy, emailLocale } from '../../../auth/emails.js'
 import type { CoreDeps } from '../deps.js'
 import { serInvitation, serWorkspace } from '../lib/ser.js'
 import { invitations, memberships, user, workspaces } from '../schema/index.js'
@@ -61,10 +61,11 @@ export async function create(
   // users already members by email
   const emails = targets.map((t) => t.email)
   const existingUsers = await db
-    .select({ id: user.id, email: user.email })
+    .select({ id: user.id, email: user.email, locale: user.locale })
     .from(user)
     .where(inArray(user.email, emails))
   const byEmail = new Map(existingUsers.map((u) => [u.email, u.id]))
+  const localeByEmail = new Map(existingUsers.map((u) => [u.email, u.locale]))
   const memberIds = new Set(
     (
       await db
@@ -129,21 +130,21 @@ export async function create(
       .returning()
     if (!row) continue
     const url = inviteUrl(kernel.env.KERN_BASE_URL, token)
-    const { html, text } = renderEmail({
-      title: `${inviter?.name ?? 'Someone'} invited you to ${ws.name}`,
-      intro: `${inviter?.name ?? 'A Kern user'} (${inviter?.email ?? ''}) invited you to join the "${ws.name}" workspace on Kern as ${t.invite.role}.${input.message ? `\n\n"${input.message}"` : ''}`,
-      actionUrl: url,
-      actionLabel: 'Accept invitation',
-      footer: `This invitation expires in ${INVITATION_TTL_DAYS} days.`,
+    // Whose language: the invitee's if Kern already knows them, otherwise the inviter's — a
+    // colleague writing to a colleague is the best guess available for a stranger's address — and
+    // the instance default when neither says anything.
+    const inviteeLocale = t.userId ? usersById.get(t.userId)?.locale : localeByEmail.get(t.email)
+    const locale = emailLocale(inviteeLocale ?? inviter?.locale, emailLocale(deps.env?.KERN_DEFAULT_LOCALE))
+    const copy = emailCopy(locale).invitation({
+      inviterName: inviter?.name ?? 'A Kern user',
+      inviterEmail: inviter?.email ?? '',
+      workspace: ws.name,
+      role: t.invite.role,
+      message: input.message ?? null,
+      expiresInDays: INVITATION_TTL_DAYS,
     })
     deps.mailer
-      .send({
-        to: t.email,
-        subject: `Invitation to join ${ws.name} on Kern`,
-        text,
-        html,
-        workspaceId: input.workspaceId,
-      })
+      .send({ to: t.email, ...composeEmail(locale, copy, url), workspaceId: input.workspaceId })
       .catch((err) => kernel.log.warn({ err }, 'invitation mail failed'))
     if (existingUserId) {
       await createNotification(ctx, deps, {

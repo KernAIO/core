@@ -210,6 +210,17 @@ and a reference UI at `/api/docs`.
   maps blank to `undefined` for the whole object at once — per field is a rule the next field has to
   remember — and `src/tests/env.test.ts` walks every key the schema declares. Any service reading
   env this way has it; `KernelEnv` still does.
+- **Mail is a screen too, and it was the only one still monolingual.** Kern ships five locales and a
+  right-to-left interface, and every message this service sent was hardcoded English laid out left
+  to right. The copy lives in `src/auth/emails.ts`, one bundle per locale (`en ar de fa tr`), and
+  three rules hold it together: the **recipient's** locale decides (Better Auth hands the user row
+  to its callbacks; a magic link is looked up by address; an invitation falls back to the inviter
+  and then to `KERN_DEFAULT_LOCALE`); counts and plurals go through `Intl`, so Arabic gets its six
+  categories and Persian gets its own digits; and `ar`/`fa` set `dir="rtl"` on the document **and**
+  the body, because a mail client renders the markup with none of our stylesheets. `tr` is in the
+  bundles although `@kernhq/contracts`' `Locale` enum still stops at `de` — the shell speaks
+  Turkish, so the speaker exists; `emailLocale()` narrows anything and falls back rather than
+  throwing.
 - **A loop that sends mail needs the try/catch inside it, not around it.** The hourly notification
   digest awaited `mailer.send` in the middle of its `for` loop, so a relay answering 550 at RCPT TO
   for one departed employee threw out of the loop: everybody the pass had not reached yet got

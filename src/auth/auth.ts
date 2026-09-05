@@ -7,9 +7,11 @@ import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { admin, bearer, jwt, magicLink, multiSession, twoFactor } from 'better-auth/plugins'
+import { eq } from 'drizzle-orm'
 import type { CoreEnv } from '../env.js'
-import { authSchema } from '../modules/core/schema/auth.js'
-import { type Mailer, renderEmail } from './mail.js'
+import { authSchema, user as userTable } from '../modules/core/schema/auth.js'
+import { composeEmail, type EmailLocale, emailCopy, emailLocale } from './emails.js'
+import type { Mailer } from './mail.js'
 import { mayCreateAccount, SIGNUP_CLOSED } from './signup.js'
 
 export interface AuthDeps {
@@ -19,6 +21,9 @@ export interface AuthDeps {
 }
 
 export const AUTH_BASE_PATH = '/api/auth'
+
+/** How long a sign-in link lives. The email says so, so the two read the same number. */
+export const MAGIC_LINK_EXPIRY_SECONDS = 60 * 5
 
 /** Origins browsers may call auth from (app dev server, Caddy domain, extra CORS origins). */
 export function trustedOrigins(kernel: Kernel, env: CoreEnv): string[] {
@@ -51,6 +56,33 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
       tenantId: env.MICROSOFT_TENANT_ID ?? 'common',
     }
 
+  const fallbackLocale = emailLocale(env.KERN_DEFAULT_LOCALE)
+  /**
+   * The locale on a Better Auth user row.
+   *
+   * `locale` is one of our `additionalFields`, so it is on the row the hook is handed at runtime
+   * and absent from Better Auth's own `User` type — the same reason `definePayload` below casts.
+   */
+  const localeOf = (u: unknown): EmailLocale =>
+    emailLocale((u as { locale?: string | null } | null)?.locale, fallbackLocale)
+  /**
+   * A magic link is asked for by address, not by session, so the recipient's language has to be
+   * looked up. An address nobody has signed up with gets the instance default — which is also the
+   * only honest answer, since there is no person to have a preference yet.
+   */
+  const localeOfEmail = async (email: string): Promise<EmailLocale> => {
+    try {
+      const [row] = await kernel.database.db
+        .select({ locale: userTable.locale })
+        .from(userTable)
+        .where(eq(userTable.email, email.trim().toLowerCase()))
+        .limit(1)
+      return emailLocale(row?.locale, fallbackLocale)
+    } catch (err) {
+      kernel.log.warn({ err: (err as Error).message }, 'could not read the recipient locale')
+      return fallbackLocale
+    }
+  }
   const auth = betterAuth({
     appName: 'Kern',
     baseURL,
@@ -116,26 +148,22 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
       minPasswordLength: 8,
       requireEmailVerification: false,
       async sendResetPassword({ user, url }) {
-        const { html, text } = renderEmail({
-          title: 'Reset your Kern password',
-          intro: `Hi ${user.name}, click the button below to choose a new password. This link expires in one hour.`,
-          actionUrl: url,
-          actionLabel: 'Reset password',
+        const locale = localeOf(user)
+        await mailer.send({
+          to: user.email,
+          ...composeEmail(locale, emailCopy(locale).resetPassword({ name: user.name }), url),
         })
-        await mailer.send({ to: user.email, subject: 'Reset your Kern password', text, html })
       },
     },
     emailVerification: {
       sendOnSignUp: true,
       autoSignInAfterVerification: true,
       async sendVerificationEmail({ user, url }) {
-        const { html, text } = renderEmail({
-          title: 'Verify your email',
-          intro: `Hi ${user.name}, please confirm your email address to finish setting up your Kern account.`,
-          actionUrl: url,
-          actionLabel: 'Verify email',
+        const locale = localeOf(user)
+        await mailer.send({
+          to: user.email,
+          ...composeEmail(locale, emailCopy(locale).verifyEmail({ name: user.name }), url),
         })
-        await mailer.send({ to: user.email, subject: 'Verify your Kern email', text, html })
       },
     },
     socialProviders,
@@ -206,16 +234,17 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
     plugins: [
       magicLink({
         async sendMagicLink({ email, url }) {
-          const { html, text } = renderEmail({
-            title: 'Sign in to Kern',
-            intro:
-              'Click the button below to sign in. This link expires in 5 minutes and can only be used once.',
-            actionUrl: url,
-            actionLabel: 'Sign in',
+          const locale = await localeOfEmail(email)
+          await mailer.send({
+            to: email,
+            ...composeEmail(
+              locale,
+              emailCopy(locale).magicLink({ minutes: MAGIC_LINK_EXPIRY_SECONDS / 60 }),
+              url,
+            ),
           })
-          await mailer.send({ to: email, subject: 'Your Kern sign-in link', text, html })
         },
-        expiresIn: 60 * 5,
+        expiresIn: MAGIC_LINK_EXPIRY_SECONDS,
       }),
       twoFactor({ issuer: 'Kern' }),
       passkey({ rpID, rpName: 'Kern', origin: new URL(appUrl).origin }),

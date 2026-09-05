@@ -4,6 +4,7 @@ import { KernError, type Kernel } from '@kernhq/kernel'
 import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
 import webpush from 'web-push'
 import type { z } from 'zod'
+import { composeEmail, emailCopy, emailLocale } from '../../../auth/emails.js'
 import type { CoreDeps } from '../deps.js'
 import { decodeCursor, encodeCursor, paginate } from '../lib/cursor.js'
 import { serNotification } from '../lib/ser.js'
@@ -508,13 +509,13 @@ async function digestOneUser(ctx: Ctx, deps: CoreDeps, userId: string): Promise<
     .orderBy(desc(notifications.createdAt))
     .limit(50)
   if (!rows.length) return false
-  const lines = rows.map((n) => `• ${n.title}${n.body ? ` — ${n.body}` : ''}`)
+  const locale = emailLocale(u.locale, emailLocale(deps.env?.KERN_DEFAULT_LOCALE))
   const base = kernel.env.KERN_BASE_URL.replace(/\/$/, '')
-  await deps.mailer.send({
-    to: u.email,
-    subject: `Kern: ${rows.length} unread notification${rows.length === 1 ? '' : 's'}`,
-    text: `Hi ${u.name},\n\nWhile you were away:\n\n${lines.join('\n')}\n\nOpen your inbox: ${base}/inbox\n`,
+  const copy = emailCopy(locale).digest({
+    name: u.name,
+    items: rows.map((n) => `${n.title}${n.body ? ` — ${n.body}` : ''}`),
   })
+  await deps.mailer.send({ to: u.email, ...composeEmail(locale, copy, `${base}/inbox`) })
   await markDigested(kernel, userId)
   return true
 }
