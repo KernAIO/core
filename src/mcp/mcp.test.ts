@@ -446,6 +446,72 @@ describe('an MCP access token used directly against the module APIs', () => {
   })
 })
 
+/**
+ * The same token, resolved the way another service resolves it.
+ *
+ * The block above proves the rule over core's own HTTP surface, and that is exactly as far as it
+ * used to reach: the check read the `FastifyRequest` inside `resolve`, so it covered the modules
+ * core hosts and nothing else. `chat`, `mail` and `collab` do not have the request — they hand the
+ * bearer to `core.users.principal` and act on the answer — and that call passed the token alone, so
+ * the very same read-only `kmt_…` came back as its owner's *full* principal and could write there.
+ * The shipped Caddyfiles route `/api/chat/*`, `/api/mail/*` and `/collab*` to those services from
+ * the edge, so this was reachable from the internet and not only between containers.
+ *
+ * These call the broker exactly as those services do, with the kernel's own system principal.
+ */
+describe('an MCP access token resolved through the broker by another service', () => {
+  let token: string
+
+  const resolve = (input: Record<string, unknown>) =>
+    core.service.kernel.call<{ kind: string; userId: string | null }>('core.users.principal', input)
+
+  beforeAll(async () => {
+    const client = await registerClient()
+    await enableMcp(true)
+    const { redirectUrl } = await consent(client.client_id, ['tracker:read'])
+    const out = await exchange({
+      grant_type: 'authorization_code',
+      code: new URL(redirectUrl).searchParams.get('code')!,
+      client_id: client.client_id,
+      redirect_uri: 'http://localhost:8765/callback',
+      code_verifier: 'unused-verifier',
+    })
+    token = out.json.access_token!
+  }, 120_000)
+
+  it('resolves for the module and direction it was granted', async () => {
+    const p = await resolve({ token, module: 'tracker', write: false })
+    expect(p.kind).toBe('user')
+    expect(p.userId).toBe(owner.id)
+  })
+
+  it('does not resolve for a write to the module it may only read', async () => {
+    expect((await resolve({ token, module: 'tracker', write: true })).kind).toBe('anonymous')
+  })
+
+  /** chat/mail/collab host modules core does not, which is the case that was wide open. */
+  it('does not resolve for a module hosted by another service', async () => {
+    expect((await resolve({ token, module: 'chat', write: false })).kind).toBe('anonymous')
+    expect((await resolve({ token, module: 'chat', write: true })).kind).toBe('anonymous')
+    expect((await resolve({ token, module: 'mail', write: true })).kind).toBe('anonymous')
+  })
+
+  /**
+   * The old call shape, which is what an un-updated service still sends. It has to fail closed:
+   * during a rolling deploy the alternative is a window in which the hole is open again.
+   */
+  it('does not resolve at all when the caller states no need', async () => {
+    expect((await resolve({ token })).kind).toBe('anonymous')
+  })
+
+  /** …while an ordinary session, which carries no scopes, still resolves without one. */
+  it('leaves a session token resolving with no need stated', async () => {
+    const p = await resolve({ token: owner.token })
+    expect(p.kind).toBe('user')
+    expect(p.userId).toBe(owner.id)
+  })
+})
+
 describe('admin surfaces', () => {
   it('lists connected clients with token counts', async () => {
     const clients = await api.mcp.clients.list({ workspaceId })

@@ -282,14 +282,33 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
     ],
 
     procedures: {
+      /**
+       * `module` and `write` say what the caller is about to let this credential do, and they are
+       * what an **MCP** token is held to — a `kmt_` token arriving without them resolves to
+       * ANONYMOUS rather than to its owner. Every other credential ignores them: a session, a JWT
+       * and an API key carry no per-module scopes, so there is nothing to check.
+       *
+       * They are optional on the wire and mandatory in effect, which is the only shape that works
+       * across a rolling deploy: an older `chat` that does not send them loses MCP rather than
+       * keeping the hole open. See `mcpPrincipal` in `src/auth/principal.ts`.
+       */
       'users.principal': {
-        input: z.union([z.object({ token: z.string() }), z.object({ userId: z.uuid() })]),
+        input: z.union([
+          z.object({
+            token: z.string(),
+            module: z.string().optional(),
+            write: z.boolean().optional(),
+          }),
+          z.object({ userId: z.uuid() }),
+        ]),
         output: Principal,
         handler: async (input, { principal }) => {
           requireService(principal)
-          return 'token' in input
-            ? deps.principals.fromToken(input.token)
-            : deps.principals.fromUserId(input.userId)
+          if (!('token' in input)) return deps.principals.fromUserId(input.userId)
+          return deps.principals.fromToken(
+            input.token,
+            input.module ? { module: input.module, write: input.write ?? false } : undefined,
+          )
         },
       },
       /**

@@ -37,11 +37,27 @@ type UserLike = Pick<
   'id' | 'email' | 'name' | 'locale' | 'instanceAdmin' | 'permissionVersion' | 'status'
 >
 
+/**
+ * What an MCP token is being asked to authorise: the module the request targets, and whether it
+ * writes. Everything else here needs no such context — a session, a JWT and an API key mean the
+ * same thing whatever they are pointed at — so this travels only with an MCP token.
+ */
+export interface McpNeed {
+  module: string
+  write: boolean
+}
+
 export interface PrincipalResolver {
   /** Fastify hook used by the kernel HTTP server */
   resolve(req: FastifyRequest): Promise<Principal>
-  /** resolve any bearer credential (session token, JWT, API key) – used by `core.users.principal` */
-  fromToken(token: string): Promise<Principal>
+  /**
+   * resolve any bearer credential (session token, JWT, API key) – used by `core.users.principal`.
+   *
+   * `need` is what an **MCP** token is held to, and it is required for one to authenticate anything
+   * at all: see `mcpPrincipal`. A caller that omits it gets ANONYMOUS for a `kmt_` token, which is
+   * the fail-closed half of the boundary that `chat`, `mail` and `collab` sit behind.
+   */
+  fromToken(token: string, need?: McpNeed): Promise<Principal>
   fromUserId(userId: string): Promise<Principal>
   fromUser(u: UserLike, kind?: Principal['kind']): Promise<Principal>
   /** drop cached memberships (null = everyone) */
@@ -197,8 +213,8 @@ export function createPrincipalResolver(opts: {
       if ((mod.definition.apiPrefix ?? mod.definition.id) === prefix) return mod.definition.id
     return null
   }
-  async function fromToken(token: string): Promise<Principal> {
-    if (token.startsWith('kmt_')) return (await fromMcpToken(token))?.principal ?? ANONYMOUS
+  async function fromToken(token: string, need?: McpNeed): Promise<Principal> {
+    if (token.startsWith('kmt_')) return mcpPrincipal(token, need ?? null)
     const h = new Headers({ authorization: `Bearer ${token}` })
     return (
       (await fromSession(h)) ??
@@ -222,14 +238,29 @@ export function createPrincipalResolver(opts: {
    * unusable credential here produces. A path that is not a module API — Better Auth, `/api/health`,
    * `/mcp` itself, which verifies its own bearer — authenticates nobody at all: an MCP token is a
    * key to module data and to nothing else.
+   *
+   * **The check has to take the need as an argument, because core is not the only host.** It first
+   * shipped reading `FastifyRequest` inside `resolve`, which meant it covered exactly the modules
+   * core serves and nothing else: `chat`, `mail` and `collab` resolve the very same token through
+   * `core.users.principal`, that broker call passed the token alone, and so an MCP token became a
+   * *full* principal there — a read-only one could write. Not a private matter between services,
+   * either: the shipped Caddyfiles route `/api/chat/*`, `/api/mail/*` and `/collab*` to those
+   * services **from the edge**, so the token holder reaches them directly. `resolve` now derives
+   * the need from its own request and every other host states it, which is why `fromToken` refuses
+   * a `kmt_` token that arrives without one.
    */
-  async function mcpPrincipalFor(req: FastifyRequest, token: string): Promise<Principal> {
+  async function mcpPrincipal(token: string, need: McpNeed | null): Promise<Principal> {
     const out = await fromMcpToken(token)
     if (!out) return ANONYMOUS
+    // No need supplied → nothing to hold the token to → it authenticates nothing. See `fromToken`.
+    if (!need) return ANONYMOUS
+    return out.scopes.includes(`${need.module}:${need.write ? 'write' : 'read'}`) ? out.principal : ANONYMOUS
+  }
+
+  /** The need a request made against *this* service expresses, or null if it is not a module API. */
+  function needForRequest(req: FastifyRequest): McpNeed | null {
     const moduleId = moduleForPath((req.url ?? '').split('?')[0] ?? '')
-    if (!moduleId) return ANONYMOUS
-    const need = `${moduleId}:${READ_METHODS.has(req.method) ? 'read' : 'write'}`
-    return out.scopes.includes(need) ? out.principal : ANONYMOUS
+    return moduleId ? { module: moduleId, write: !READ_METHODS.has(req.method) } : null
   }
 
   return {
@@ -262,7 +293,7 @@ export function createPrincipalResolver(opts: {
         if (typeof authz === 'string' && authz.toLowerCase().startsWith('bearer ')) {
           const token = authz.slice(7).trim()
           if (!token) return ANONYMOUS
-          if (token.startsWith('kmt_')) return mcpPrincipalFor(req, token)
+          if (token.startsWith('kmt_')) return mcpPrincipal(token, needForRequest(req))
           return fromToken(token)
         }
         // 4. cookie session
