@@ -289,3 +289,44 @@ and a reference UI at `/api/docs`.
   still *declare* the guest access the floor removes — `module-tracker` and `module-quire` should
   drop `guest` from their project/space-scoped permissions so the declaration and the behaviour
   agree. Fail-closed first: an under-powered guest is a disappointment, a leaky one is a breach.
+- **A presigned PUT does not bind the content type, so the upload is the wrong place to enforce
+  one.** `X-Amz-SignedHeaders` on the URL the kernel signs is `content-length;host` — `content-type`
+  is not in it — so the uploader sends whatever it likes and the object carries it: a ticket issued
+  for `text/plain` produced an object `mc stat` reports as `text/html`. Enforcement therefore lives
+  on the **download**, where `presignGet` sets `response-content-type` on every single GET, and the
+  row is re-checked there rather than trusted, so rows written before the rule are repaired without
+  a migration. The rule itself is two halves: a type a browser runs as a document (html, xhtml,
+  xml, xslt, javascript) is served as `text/plain`, and `inline` is honoured only for types that
+  cannot become one — raster images, audio, video, plain text. SVG keeps its type and is forced to
+  `attachment`, because `Content-Disposition` does not affect a subresource load: `<img src>` still
+  renders it, and only a *navigation* is stopped. This mattered because `files.createUpload` is an
+  ordinary member permission and every shipped stack serves object storage from the app's own
+  origin. The residual is at the edge, not here: anything that serves the object **without** Kern's
+  override still hands over the uploader's type, so the `/s3` route in the shipped Caddyfiles wants
+  `X-Content-Type-Options: nosniff`. Verify this class by fetching the URL and reading the response
+  headers — a signed parameter the store ignores looks identical in the URL and is worth nothing.
+- **A closed account is anonymous on the one route that reopens it.** Closing suspends the user row
+  and deletes every session, and `principal.ts` answers ANONYMOUS for any non-active user on every
+  credential path — so `DELETE /api/core/account/deletion` went through `authed()` and answered 401
+  to the only person entitled to call it, for the whole of the 30-day window the terms and the
+  privacy policy promise. Nothing failed; the promise was simply unreachable, and it was invisible
+  from the service functions, which were always callable and always worked. `authedOrClosed` is the
+  single exception, narrowed three ways: a Better Auth **session** only (Better Auth knows nothing
+  of `users.status`, so signing in again works — while an API key, a JWT or an MCP token stays
+  anonymous, because a machine credential must not reopen an account), `suspended` and not
+  `deleted`, and only with an open request against the row. Closure is also refused for the last
+  *active* instance admin: on a self-hosted instance that is the door locking from the inside, with
+  `KERN_ADMIN_EMAIL` at boot or SQL as the only way back. Any promise made in the terms deserves a
+  test that drives the HTTP route, not the function beneath it.
+- **Do not pass `template` on `mail.send` from here — it would undo the localisation.** The mail
+  module ships five branded MJML templates named exactly as core's messages (`magic-link`,
+  `reset-password`, `verify-email`, `invitation`, `notification-digest`), and `SendMailInput` takes
+  `template: { name, data }`, so wiring them up looks like a one-line win. It is not:
+  `buildMessage` assigns `html = rendered.html` **unconditionally** (module-mail
+  `src/server/send.ts`), and `renderTemplate` has no locale parameter and one file per name —
+  rendering `magic-link` returns "Sign in to Kern" inside `<html lang="und" dir="auto">` whoever it
+  is for. Measured by rendering it, not by reading it. So an Arabic or Persian recipient would get
+  the branded English body instead of the `dir="rtl"` one `emails.ts` builds, which is exactly the
+  defect that file was written to fix. Core keeps sending its own `text`/`html` (localised,
+  unbranded) until the mail module can render a template in a locale — `renderTemplate(name, data,
+  { locale })` over `<name>.<locale>.mjml`, and `buildMessage` leaving a caller's `html` alone.
