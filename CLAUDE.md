@@ -210,6 +210,19 @@ and a reference UI at `/api/docs`.
   maps blank to `undefined` for the whole object at once — per field is a rule the next field has to
   remember — and `src/tests/env.test.ts` walks every key the schema declares. Any service reading
   env this way has it; `KernelEnv` still does.
+- **A per-IP rate limiter that cannot resolve an IP is one bucket for the whole instance.** Better
+  Auth refuses to believe an `X-Forwarded-For` with more than one entry unless it is told which hops
+  to trust — which is right, since the leftmost entry is whatever the client typed — and then falls
+  back to a single shared key. Kern Cloud is Cloudflare → Coolify → Caddy → core, so *every* request
+  shared that key and Better Auth's own default of 3 sign-ins per 10 seconds applied to everybody at
+  once: ordinary people refused sign-in because somebody else signed in. `advanced.ipAddress.
+  trustedProxies` (the private ranges the shipped Caddyfile already trusts, plus
+  `KERN_TRUSTED_PROXIES`) is what makes the bucket per person again, and `rateLimit` now carries
+  Kern's numbers instead of the library's. Two traps worth knowing: a **public** proxy in front
+  (Cloudflare) is not in the private ranges and has to be named, or everyone behind one edge shares
+  a bucket; and `customRules` matches the *first* key that matches, so an exact path has to be
+  listed above the wildcard covering it. The limiter runs in the router's `onRequest`, so a direct
+  `auth.api.*` call never reaches it — a test that proves anything has to drive `auth.handler`.
 - **Mail is a screen too, and it was the only one still monolingual.** Kern ships five locales and a
   right-to-left interface, and every message this service sent was hardcoded English laid out left
   to right. The copy lives in `src/auth/emails.ts`, one bundle per locale (`en ar de fa tr`), and

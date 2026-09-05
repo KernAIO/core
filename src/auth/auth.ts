@@ -38,6 +38,69 @@ export function trustedOrigins(kernel: Kernel, env: CoreEnv): string[] {
   return [...set]
 }
 
+/**
+ * Proxies whose `X-Forwarded-For` entries Better Auth may believe, by default.
+ *
+ * The same set the shipped `Caddyfile` trusts (`trusted_proxies static private_ranges`), because
+ * the two answer the same question one hop apart and a client IP that Caddy preserves and core then
+ * discards is worse than either alone. Better Auth walks the header from the right and stops at the
+ * first hop it does not trust, so every proxy between the client and this process has to be in
+ * here: with none of them, a chain of more than one entry resolves to *no* IP at all and the
+ * per-IP limiter collapses into one instance-wide bucket — 3 sign-ins per 10 seconds for everybody
+ * at once, which is how ordinary people are refused sign-in because somebody else signed in.
+ *
+ * A public proxy in front (Cloudflare, a cloud load balancer) is not private and has to be named in
+ * `KERN_TRUSTED_PROXIES`, or everyone behind that proxy shares one bucket.
+ */
+export const PRIVATE_PROXY_RANGES = [
+  '10.0.0.0/8',
+  '172.16.0.0/12',
+  '192.168.0.0/16',
+  '127.0.0.0/8',
+  '::1/128',
+  'fd00::/8',
+] as const
+
+/** The private ranges plus whatever `KERN_TRUSTED_PROXIES` adds. */
+export function trustedProxies(env: CoreEnv): string[] {
+  const extra = (env.KERN_TRUSTED_PROXIES ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return [...new Set([...PRIVATE_PROXY_RANGES, ...extra])]
+}
+
+/**
+ * What Kern allows per client IP, rather than what Better Auth defaults to.
+ *
+ * Better Auth's built-in rule for sign-in, sign-up and password change is 3 requests per 10
+ * seconds, which is tight enough that one person mistyping a password three times is locked out of
+ * their own instance for the rest of the window. These are Kern's numbers: generous enough for a
+ * person, far too tight for credential stuffing, and tightest on the endpoints that *send mail*,
+ * because those spend somebody's sending reputation as well as their CPU.
+ *
+ * Order matters: Better Auth takes the *first* key that matches, so an exact path has to sit above
+ * the wildcard that would also cover it.
+ */
+export const RATE_LIMIT = {
+  window: 60,
+  max: 120,
+  rules: {
+    // sends mail — kept at the same rate whichever door it is asked through
+    '/sign-in/magic-link': { window: 60, max: 5 },
+    '/request-password-reset': { window: 60, max: 5 },
+    '/send-verification-email': { window: 60, max: 5 },
+    '/forget-password/*': { window: 60, max: 5 },
+    '/magic-link/*': { window: 60, max: 5 },
+    // guesses a secret
+    '/sign-in/*': { window: 60, max: 10 },
+    '/sign-up/*': { window: 60, max: 5 },
+    '/change-password': { window: 60, max: 10 },
+    '/change-email': { window: 60, max: 10 },
+    '/two-factor/*': { window: 60, max: 10 },
+  },
+} as const
+
 export function createAuth({ kernel, env, mailer }: AuthDeps) {
   const baseURL = env.BETTER_AUTH_URL ?? kernel.env.CORE_URL
   const appUrl = kernel.env.KERN_BASE_URL
@@ -95,6 +158,26 @@ export function createAuth({ kernel, env, mailer }: AuthDeps) {
       cookiePrefix: 'kern',
       useSecureCookies: isProd && appUrl.startsWith('https://'),
       defaultCookieAttributes: { sameSite: 'lax' },
+      // Without this, `X-Forwarded-For: <client>, <caddy>` resolves to no IP at all (Better Auth
+      // refuses to believe a multi-entry header from an unnamed proxy, which is right), and every
+      // request on the instance shares one rate-limit bucket. See `PRIVATE_PROXY_RANGES`.
+      ipAddress: { ipAddressHeaders: ['x-forwarded-for'], trustedProxies: trustedProxies(env) },
+    },
+    /**
+     * On everywhere but a developer's machine.
+     *
+     * Better Auth enables this in production only; an instance running with `NODE_ENV=test`, and
+     * this repository's own suite, would otherwise have no limiter to prove anything about. The
+     * numbers are Kern's (see `RATE_LIMIT`) rather than the library's defaults, and the store is
+     * per process: two replicas mean two buckets, which is a weaker limit than it looks and still
+     * the right trade against a shared store on the sign-in path.
+     */
+    rateLimit: {
+      enabled: env.NODE_ENV !== 'development',
+      window: RATE_LIMIT.window,
+      max: RATE_LIMIT.max,
+      storage: 'memory',
+      customRules: { ...RATE_LIMIT.rules },
     },
     user: {
       additionalFields: {

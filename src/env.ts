@@ -54,6 +54,14 @@ export const CoreEnvFields = z.object({
    * recipient Kern knows is written to in *their* locale, whatever this says.
    */
   KERN_DEFAULT_LOCALE: z.enum(EMAIL_LOCALES).default(DEFAULT_EMAIL_LOCALE),
+  /**
+   * Proxies whose `X-Forwarded-For` entries may be believed, as IPs or CIDR ranges, comma
+   * separated. Added to the private ranges the shipped Caddyfile already trusts — set it when a
+   * *public* proxy sits in front (Cloudflare, a load balancer with a public address), or every
+   * visitor behind that proxy shares one rate-limit bucket. See `TRUSTED_PROXIES` in
+   * `src/auth/auth.ts`.
+   */
+  KERN_TRUSTED_PROXIES: z.string().optional(),
   KERN_ADMIN_EMAIL: z.string().email().optional(),
   KERN_ADMIN_PASSWORD: z.string().min(8).optional(),
   KERN_ADMIN_NAME: z.string().default('Admin'),
