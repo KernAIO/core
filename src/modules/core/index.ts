@@ -175,8 +175,14 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
         name: 'notifications.digest',
         cron: '0 * * * *',
         handler: async (_input, { kernel }) => {
-          const sent = await notifications.runDigest(sysCtx(kernel, kernel.system), deps)
-          if (sent) kernel.log.info({ sent }, 'notification digests sent')
+          const { sent, failed, abandoned } = await notifications.runDigest(
+            sysCtx(kernel, kernel.system),
+            deps,
+          )
+          // Failures are logged at warn even when some digests went out: a relay that has started
+          // refusing addresses is only visible as a number that climbs from one run to the next.
+          if (failed) kernel.log.warn({ sent, failed, abandoned }, 'notification digests failed')
+          else if (sent) kernel.log.info({ sent }, 'notification digests sent')
         },
       },
       {

@@ -210,6 +210,16 @@ and a reference UI at `/api/docs`.
   maps blank to `undefined` for the whole object at once — per field is a rule the next field has to
   remember — and `src/tests/env.test.ts` walks every key the schema declares. Any service reading
   env this way has it; `KernelEnv` still does.
+- **A loop that sends mail needs the try/catch inside it, not around it.** The hourly notification
+  digest awaited `mailer.send` in the middle of its `for` loop, so a relay answering 550 at RCPT TO
+  for one departed employee threw out of the loop: everybody the pass had not reached yet got
+  nothing, their `emailedAt` stayed unset, and the same address broke the same run again an hour
+  later, for ever. The failure is per recipient now and counted into the job's result
+  (`{ sent, failed, abandoned }`) so a spike is visible in the log rather than only in a support
+  ticket. The second half is knowing when to stop: a **permanent** refusal (SMTP 5xx, nodemailer's
+  `EENVELOPE`) stamps the notifications as digested so the address is not retried hourly for ever —
+  the notification is still in the person's inbox in the app — while a 4xx or a timeout is left for
+  the next pass.
 - **A workspace slug loses to the reverse proxy as easily as to a page.** `RESERVED_SLUGS` was
   written against `repos/shell/src/routes` alone, so `/collab*`, which Caddy has always sent to the
   collab service, was free to take: the workspace was created and then answered on nothing outside

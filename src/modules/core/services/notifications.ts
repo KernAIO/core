@@ -396,7 +396,29 @@ export async function deliverPush(
 // ---------- email digest (worker cron) ----------
 const DIGEST_MIN_INTERVAL_MS = { hourly: 55 * 60_000, daily: 23 * 60 * 60_000 } as const
 
-export async function runDigest(ctx: Ctx, deps: CoreDeps): Promise<number> {
+/** What one pass of the digest did. `failed` is what makes a bad relay visible in the job log. */
+export interface DigestResult {
+  sent: number
+  failed: number
+  /** recipients whose address the relay refused outright, and who will not be retried */
+  abandoned: number
+}
+
+/**
+ * Whether a delivery failure is the address's fault rather than the moment's.
+ *
+ * An SMTP 5xx is the recipient being refused — no such mailbox, the domain does not accept mail,
+ * the relay has blacklisted the address. Retrying that every hour for ever sends nothing and spends
+ * the sending domain's reputation on hard bounces, so those notifications are stamped as done. A
+ * 4xx, a timeout or a dropped connection is the moment's fault and is left to the next pass.
+ */
+function isPermanentMailFailure(err: unknown): boolean {
+  const e = err as { responseCode?: unknown; code?: unknown }
+  if (typeof e?.responseCode === 'number') return e.responseCode >= 500 && e.responseCode < 600
+  return e?.code === 'EENVELOPE' || e?.code === 'EMESSAGE'
+}
+
+export async function runDigest(ctx: Ctx, deps: CoreDeps): Promise<DigestResult> {
   const { kernel } = ctx
   const db = kernel.database.db
   // users that have queued, unread, not-yet-emailed notifications
@@ -408,50 +430,91 @@ export async function runDigest(ctx: Ctx, deps: CoreDeps): Promise<number> {
     )
     .groupBy(notifications.userId)
   let sent = 0
+  let failed = 0
+  let abandoned = 0
   for (const p of pending) {
-    const settings = await getSettingsRow(kernel, p.userId)
-    const cadence = (settings?.emailDigest ?? 'daily') as 'off' | 'hourly' | 'daily'
-    if (cadence === 'off') continue
-    const last = settings?.lastDigestAt?.getTime() ?? 0
-    if (Date.now() - last < DIGEST_MIN_INTERVAL_MS[cadence]) continue
-    const [u] = await db.select().from(user).where(eq(user.id, p.userId)).limit(1)
-    if (u?.status !== 'active') continue
-    const rows = await db
-      .select()
-      .from(notifications)
-      .where(
-        and(
-          eq(notifications.userId, p.userId),
-          eq(notifications.emailQueued, true),
-          isNull(notifications.emailedAt),
-          isNull(notifications.readAt),
-        ),
+    /**
+     * One recipient never takes the run down with them.
+     *
+     * A corporate relay answering 550 at RCPT TO for a departed employee used to throw straight out
+     * of this loop: everybody after that user in the pass got nothing, their `emailedAt` stayed
+     * unset, and the same address broke the same run again an hour later, for ever. The failure is
+     * per user now, it is counted so a spike is visible in the job's log, and a *permanent* refusal
+     * stamps the notifications as done rather than queueing them for the next thousand attempts —
+     * the notification is still in the person's inbox in the app, which is where they will see it.
+     */
+    try {
+      const digested = await digestOneUser(ctx, deps, p.userId)
+      if (digested) sent++
+    } catch (err) {
+      const permanent = isPermanentMailFailure(err)
+      failed++
+      kernel.log.warn(
+        { userId: p.userId, err: (err as Error).message, permanent },
+        permanent
+          ? 'notification digest refused for this address; not retrying'
+          : 'notification digest failed for one user; the rest of the run continues',
       )
-      .orderBy(desc(notifications.createdAt))
-      .limit(50)
-    if (!rows.length) continue
-    const lines = rows.map((n) => `• ${n.title}${n.body ? ` — ${n.body}` : ''}`)
-    const base = kernel.env.KERN_BASE_URL.replace(/\/$/, '')
-    await deps.mailer.send({
-      to: u.email,
-      subject: `Kern: ${rows.length} unread notification${rows.length === 1 ? '' : 's'}`,
-      text: `Hi ${u.name},\n\nWhile you were away:\n\n${lines.join('\n')}\n\nOpen your inbox: ${base}/inbox\n`,
-    })
-    await db
-      .update(notifications)
-      .set({ emailedAt: new Date() })
-      .where(
-        and(
-          eq(notifications.userId, p.userId),
-          eq(notifications.emailQueued, true),
-          isNull(notifications.emailedAt),
-        ),
+      if (!permanent) continue
+      abandoned++
+      await markDigested(kernel, p.userId).catch((e: Error) =>
+        kernel.log.warn({ userId: p.userId, err: e.message }, 'could not stamp an abandoned digest'),
       )
-    await db
-      .insert(notificationSettings)
-      .values({ userId: p.userId, lastDigestAt: new Date() })
-      .onConflictDoUpdate({ target: notificationSettings.userId, set: { lastDigestAt: new Date() } })
-    sent++
+    }
   }
-  return sent
+  return { sent, failed, abandoned }
+}
+
+/** Marks everything currently queued for this user as having been through the digest. */
+async function markDigested(kernel: Kernel, userId: string): Promise<void> {
+  await kernel.database.db
+    .update(notifications)
+    .set({ emailedAt: new Date() })
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        eq(notifications.emailQueued, true),
+        isNull(notifications.emailedAt),
+      ),
+    )
+  await kernel.database.db
+    .insert(notificationSettings)
+    .values({ userId, lastDigestAt: new Date() })
+    .onConflictDoUpdate({ target: notificationSettings.userId, set: { lastDigestAt: new Date() } })
+}
+
+/** One recipient's digest. False when there was nothing to send; throws what the relay throws. */
+async function digestOneUser(ctx: Ctx, deps: CoreDeps, userId: string): Promise<boolean> {
+  const { kernel } = ctx
+  const db = kernel.database.db
+  const settings = await getSettingsRow(kernel, userId)
+  const cadence = (settings?.emailDigest ?? 'daily') as 'off' | 'hourly' | 'daily'
+  if (cadence === 'off') return false
+  const last = settings?.lastDigestAt?.getTime() ?? 0
+  if (Date.now() - last < DIGEST_MIN_INTERVAL_MS[cadence]) return false
+  const [u] = await db.select().from(user).where(eq(user.id, userId)).limit(1)
+  if (u?.status !== 'active') return false
+  const rows = await db
+    .select()
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        eq(notifications.emailQueued, true),
+        isNull(notifications.emailedAt),
+        isNull(notifications.readAt),
+      ),
+    )
+    .orderBy(desc(notifications.createdAt))
+    .limit(50)
+  if (!rows.length) return false
+  const lines = rows.map((n) => `• ${n.title}${n.body ? ` — ${n.body}` : ''}`)
+  const base = kernel.env.KERN_BASE_URL.replace(/\/$/, '')
+  await deps.mailer.send({
+    to: u.email,
+    subject: `Kern: ${rows.length} unread notification${rows.length === 1 ? '' : 's'}`,
+    text: `Hi ${u.name},\n\nWhile you were away:\n\n${lines.join('\n')}\n\nOpen your inbox: ${base}/inbox\n`,
+  })
+  await markDigested(kernel, userId)
+  return true
 }

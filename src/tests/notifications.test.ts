@@ -347,4 +347,57 @@ describe('email digest', () => {
 
     expect(await digest()).toEqual([])
   })
+
+  /**
+   * A relay refusing one address used to end the whole run.
+   *
+   * `mailer.send` threw straight out of the loop, so everybody the pass had not reached yet got
+   * nothing and kept their `emailedAt` unset — and because the job is hourly, the same departed
+   * employee's 550 broke the same run every hour, for ever.
+   */
+  it('keeps going when the relay refuses one recipient, and stops retrying that address', async () => {
+    // Two accounts of their own, so neither carries a `lastDigestAt` from an earlier test.
+    const refused = await core.signUp({ name: 'Departed employee' })
+    const reachable = await core.signUp({ name: 'Second reader' })
+    const queue = (userId: string, title: string) =>
+      core.kernel.call('core.notifications.create', {
+        userId,
+        workspaceId: null,
+        module: 'core',
+        type: 'core.system',
+        title,
+        body: null,
+        object: null,
+        url: null,
+        data: {},
+        groupKey: null,
+        actorId: null,
+      })
+    await queue(refused.id, 'For an address that no longer exists')
+    await queue(reachable.id, 'For somebody who is still here')
+
+    const delivered: string[] = []
+    const real = core.service.deps.mailer
+    core.service.deps.mailer = {
+      async send(msg) {
+        if (msg.to === refused.email)
+          throw Object.assign(new Error('550 5.1.1 Recipient address rejected: user unknown'), {
+            responseCode: 550,
+          })
+        delivered.push(msg.to)
+      },
+    }
+    try {
+      const run = () => runDigest({ kernel: core.kernel, principal: core.kernel.system }, core.service.deps)
+      expect(await run()).toEqual({ sent: 1, failed: 1, abandoned: 1 })
+      expect(delivered).toEqual([reachable.email])
+
+      // A permanent refusal is not tried again an hour later: the notification is still in the
+      // person's inbox in the app, and the address is not worth another thousand attempts.
+      delivered.length = 0
+      expect(await run()).toEqual({ sent: 0, failed: 0, abandoned: 0 })
+    } finally {
+      core.service.deps.mailer = real
+    }
+  })
 })
