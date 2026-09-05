@@ -19,10 +19,22 @@ import { workspaceSummaries } from './users.js'
 /**
  * Slugs a workspace may not take.
  *
- * A workspace lives at `/<slug>`, and the app puts a handful of its own pages at that same level —
- * `/sign-in`, `/workspaces`, `/onboarding` and the rest. SvelteKit prefers the static route, so a
- * workspace called "workspaces" would exist and simply never open. Every top-level route in
- * `repos/shell/src/routes` belongs here; add the name in the commit that adds the route.
+ * A workspace lives at `/<slug>`, so it competes for that one namespace with two other things, and
+ * losing to either produces a workspace that exists and cannot be opened:
+ *
+ *  1. **The app's own top-level pages.** SvelteKit prefers the static route, so a workspace called
+ *     "workspaces" simply never opens. Every top-level route in `repos/shell/src/routes` belongs
+ *     here — the literal segments, so the route *groups* (`(app)`, `(auth)`, `(public)`) are looked
+ *     through rather than listed.
+ *  2. **Every path the reverse proxy answers before the app ever sees it.** The shipped `Caddyfile`
+ *     routes `/api/*`, `/ws`, `/collab*`, `/kern/*`, `/mcp*` and `/.well-known/*` elsewhere, so a
+ *     workspace at one of those slugs is unreachable from outside the container network, whatever
+ *     the app thinks. `collab` was missing for as long as that route existed.
+ *
+ * Both lists drift silently — adding a route is a change in another repository, and nothing about
+ * it fails here. `src/tests/reserved-slugs.test.ts` is the guard: it holds this set to both
+ * enumerations, and reads the real files when the umbrella workspace is checked out around us.
+ * Add the name in the commit that adds the route.
  */
 export const RESERVED_SLUGS = new Set([
   'api',
@@ -35,10 +47,16 @@ export const RESERVED_SLUGS = new Set([
   'settings',
   'new',
   'www',
-  'kern',
   'static',
   '_',
+  // routed by the reverse proxy to another service, so the app never sees them
   'ws',
+  'collab',
+  // the storage bucket (`S3_BUCKET`), routed straight to MinIO without stripping the path
+  'kern',
+  // MCP: the transport, and the OAuth metadata documents an AI client fetches from the site root
+  'mcp',
+  '.well-known',
   // top-level pages in the app
   'sign-in',
   'sign-up',
@@ -48,6 +66,8 @@ export const RESERVED_SLUGS = new Set([
   'onboarding',
   'workspaces',
   'request',
+  // public publication pages: /p/<workspace>/<publication>
+  'p',
   // MCP consent screen: an AI client lands here from /api/mcp/oauth/authorize
   'authorize',
 ])

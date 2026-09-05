@@ -14,7 +14,32 @@ if (process.env.NODE_ENV !== 'production') {
   loadDotenv({ path: resolve(here, '../../../.env'), quiet: true })
 }
 
-export const CoreEnv = z.object({
+/**
+ * Blank means unset, for every key at once.
+ *
+ * A shipped compose file passes each variable through unconditionally — `SMTP_URL: ${SMTP_URL}` —
+ * so a variable nobody filled in arrives as the empty string rather than as absent, and zod sees a
+ * *value* to validate. Half the schema below then refuses it and `loadCoreEnv` throws before the
+ * service binds :4000: `KERN_SIGNUP: ''` is "Invalid option" (the empty line `.env.example` ships),
+ * `KERN_ADMIN_EMAIL: ''` is an invalid email, `KERN_ADMIN_PASSWORD: ''` is too short,
+ * `BETTER_AUTH_SECRET: ''` is too short. The other half accepts it and is quietly wrong, which is
+ * worse: `.default()` only fires for `undefined`, so `MAIL_FROM: ''` sends mail from nobody rather
+ * than from the default, `UPLOAD_MAX_PUT_BYTES: ''` coerces to 0 and every upload is refused, and
+ * `PASSKEY_RP_ID: ''` survives `??` to bind passkeys to an empty relying party.
+ *
+ * Doing this per field is a rule the next field added here has to remember, and forgetting it is a
+ * boot failure on somebody else's server. So it is one pass over the whole object.
+ */
+function blankAsUnset(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw))
+    out[key] = typeof value === 'string' && value.trim() === '' ? undefined : value
+  return out
+}
+
+/** The fields themselves, exported so `src/tests/env.test.ts` can walk every key. Parse `CoreEnv`. */
+export const CoreEnvFields = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   /** Better Auth secret (falls back to KERN_SECRET) */
   BETTER_AUTH_SECRET: z.string().min(16).optional(),
@@ -49,7 +74,9 @@ export const CoreEnv = z.object({
     .int()
     .default(500 * 1024 * 1024),
 })
-export type CoreEnv = z.infer<typeof CoreEnv>
+
+export const CoreEnv = z.preprocess(blankAsUnset, CoreEnvFields)
+export type CoreEnv = z.infer<typeof CoreEnvFields>
 
 export function loadCoreEnv(extra: Record<string, string | undefined> = {}): CoreEnv {
   const parsed = CoreEnv.safeParse({ ...process.env, ...extra })

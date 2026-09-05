@@ -200,3 +200,13 @@ and a reference UI at `/api/docs`.
   would either cascade through other tenants' history or leave references that read as corruption.
   `status: 'deleted'` with the identifying columns emptied (and the id folded into `email`, which is
   unique, so the address can be taken again) is what erasure means for a shared record.
+- **An unset variable in a compose file arrives as the empty string, not as absent.** Every shipped
+  stack passes `KERN_SIGNUP: ${KERN_SIGNUP:-}` and `.env.example` ships that line empty, so zod had
+  a *value* to validate: "Invalid option", thrown by `loadCoreEnv` before the service bound :4000 —
+  no self-hosted instance started. `KERN_ADMIN_EMAIL`, `KERN_ADMIN_PASSWORD` and
+  `BETTER_AUTH_SECRET` were one blank line from the same crash, and the fields with a `.default()`
+  fail quietly instead, because a default only fires for `undefined`: `MAIL_FROM: ''` sends mail
+  from nobody and `UPLOAD_MAX_PUT_BYTES: ''` coerces to 0 and refuses every upload. `src/env.ts`
+  maps blank to `undefined` for the whole object at once — per field is a rule the next field has to
+  remember — and `src/tests/env.test.ts` walks every key the schema declares. Any service reading
+  env this way has it; `KernelEnv` still does.
