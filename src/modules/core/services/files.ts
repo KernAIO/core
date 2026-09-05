@@ -13,6 +13,41 @@ const DOWNLOAD_URL_TTL_SEC = 3600
 const THUMBNAIL_MAX_SOURCE_BYTES = 64 * 1024 * 1024
 const THUMBNAIL_MIME = /^image\/(jpeg|png|webp|gif|avif|tiff|svg\+xml)$/
 
+/**
+ * Content types a browser executes as a document, on whatever origin served them.
+ *
+ * `files.createUpload` is an ordinary member permission and the shipped Caddyfile serves object
+ * storage from the **same origin as the app**, so an uploader who could choose the content type
+ * could store a page that runs script on the application's origin and hand the link to any
+ * signed-in colleague — a session cookie away from acting as them. The declared type was never
+ * checked and was signed straight back into the download URL as `response-content-type`.
+ *
+ * These are served as `text/plain` instead. The bytes are untouched and still downloadable; only
+ * the browser's instruction to *run* them is withdrawn. SVG is deliberately **not** in this list:
+ * rewriting its type would break `<img src>`, and forcing `attachment` (below) already stops it
+ * being a document, which is the only way SVG script runs.
+ */
+const EXECUTABLE_MIME =
+  /^(?:text\/html|application\/xhtml\+xml|text\/xml|application\/xml|text\/xsl|application\/xslt\+xml|text\/javascript|application\/(?:x-)?javascript|application\/ecmascript|text\/ecmascript|application\/mathml\+xml)\b/i
+
+/**
+ * Types a browser may render in place, because none of them can run script on our origin.
+ *
+ * Everything else — SVG, HTML, a PDF from who knows where, an unknown type — is served as an
+ * attachment whatever the caller asked for. `Content-Disposition` does not affect a subresource
+ * load, so an `<img>` or a `<video>` still renders; it only stops a *navigation* to the URL from
+ * becoming a document on this origin.
+ */
+const INLINE_SAFE_MIME =
+  /^(?:image\/(?:png|jpe?g|gif|webp|avif|bmp|tiff|x-icon|vnd\.microsoft\.icon)|video\/|audio\/|text\/plain)\b/i
+
+/** The type an upload is stored and served as: the declared one, unless a browser would run it. */
+export const safeContentType = (declared: string): string =>
+  EXECUTABLE_MIME.test(declared.trim()) ? 'text/plain; charset=utf-8' : declared.trim()
+
+/** Whether a served type may be rendered in place. Anything else is downloaded. */
+export const mayRenderInline = (contentType: string): boolean => INLINE_SAFE_MIME.test(contentType)
+
 export async function getFileRow(kernel: Kernel, id: string) {
   const [f] = await kernel.database.db.select().from(files).where(eq(files.id, id)).limit(1)
   return f ?? null
@@ -132,13 +167,22 @@ export async function createUpload(
     id,
     name: input.name,
   })
+  /**
+   * Neutralised here, at the ticket, and not only at the download.
+   *
+   * The signature over a presigned PUT covers `content-type`, so whatever is stored on the row is
+   * also what the object in the bucket carries and what the client is told to send — one type, in
+   * three places, chosen by us. Storing the declared type and repairing it only on the way out
+   * would leave an executable object in a bucket that is reachable by any other presigned URL.
+   */
+  const mimeType = safeContentType(input.mimeType)
   const [row] = await kernel.database.db
     .insert(files)
     .values({
       id,
       workspaceId: input.workspaceId,
       name: input.name,
-      mimeType: input.mimeType,
+      mimeType,
       size: input.size,
       key,
       attachedTo: input.attachedTo ?? null,
@@ -148,7 +192,7 @@ export async function createUpload(
     .returning()
   if (!row) throw new KernError('INTERNAL', 'File insert failed')
   const url = await kernel.storage.presignPut(key, {
-    contentType: input.mimeType,
+    contentType: mimeType,
     contentLength: input.size,
     expiresIn: UPLOAD_URL_TTL_SEC,
   })
@@ -156,7 +200,7 @@ export async function createUpload(
     file: serFile(row),
     method: 'put',
     url,
-    headers: { 'content-type': input.mimeType },
+    headers: { 'content-type': mimeType },
     expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_SEC * 1000).toISOString(),
   }
 }
@@ -210,12 +254,25 @@ export async function downloadUrl(
 ): Promise<{ url: string; expiresAt: string }> {
   const f = await requireFile(ctx, input.id)
   if (f.status !== 'ready') throw KernError.conflict('File is not ready', 'core.file.not_ready')
-  const key = input.thumbnail && f.thumbnailKey ? f.thumbnailKey : f.key
+  const wantThumbnail = input.thumbnail && !!f.thumbnailKey
+  const key = wantThumbnail ? f.thumbnailKey! : f.key
+  /**
+   * The response content type is ours, and the disposition is ours to refuse.
+   *
+   * `safeContentType` is applied again rather than trusted from the row, because rows written
+   * before this existed still hold whatever their uploader declared — so the repair reaches every
+   * file already in the bucket without a migration. `inline` is then honoured only for a type that
+   * cannot become a document on this origin; everything else is downloaded, whoever asked and
+   * whatever they asked for. The filename is always passed so that the disposition is always
+   * present: the kernel omits the header entirely when there is no filename to put in it.
+   */
+  const contentType = wantThumbnail ? 'image/webp' : safeContentType(f.mimeType)
+  const disposition = input.disposition === 'inline' && mayRenderInline(contentType) ? 'inline' : 'attachment'
   const url = await ctx.kernel.storage.presignGet(key, {
     expiresIn: DOWNLOAD_URL_TTL_SEC,
-    filename: input.thumbnail && f.thumbnailKey ? undefined : f.name,
-    disposition: input.disposition,
-    contentType: input.thumbnail && f.thumbnailKey ? 'image/webp' : f.mimeType,
+    filename: wantThumbnail ? `${f.name.replace(/\.[^./\\]+$/, '')}.webp` : f.name,
+    disposition,
+    contentType,
   })
   return { url, expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SEC * 1000).toISOString() }
 }
