@@ -2,6 +2,7 @@ import { createHttpServer, createKernel, type Kernel } from '@kernhq/kernel'
 import { billingModule } from '@kernhq/module-billing/server'
 import { hrModule } from '@kernhq/module-hr/server'
 import { inventoryModule } from '@kernhq/module-inventory/server'
+import { meetModule } from '@kernhq/module-meet/server'
 import { quireModule } from '@kernhq/module-quire/server'
 import { trackerModule } from '@kernhq/module-tracker/server'
 import type { FastifyInstance } from 'fastify'
@@ -43,6 +44,19 @@ export const featureModules = [
   hrModule,
   billingModule,
   inventoryModule,
+  /**
+   * Meetings, and the one thing to know before assuming this switches something on.
+   *
+   * `isEnabled` answers `row?.enabled ?? true`, so a module added to this image is on in every
+   * workspace on the instance the night it rolls out — including workspaces created long before it
+   * existed. What keeps `meet` inert is that both its capabilities default to off and neither is
+   * `required`: `meetings.start` and `meetings.join` sit behind `requiresCapability('meet','calls')`
+   * and answer 404 until an administrator switches it on, and its client contributes no navigation
+   * at all yet. `meet.config.get` is the deliberate exception — it is how an administrator finds out
+   * whether the instance has a media server, which is the question that only matters while the
+   * feature is off.
+   */
+  meetModule,
   // whatever KERN_EXTRA_MODULES put into this image; see scripts/extra-modules.mjs
   ...extraModules,
 ]

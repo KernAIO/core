@@ -171,4 +171,142 @@ describe('hosted feature modules', () => {
     const second = await inventory.assets.create({ workspaceId, name: 'Hosted phone' })
     expect(second.code).not.toBe(asset.code)
   })
+
+  it('registers meet, so /api/meet is served by this service', () => {
+    const hosted = core.kernel.manifests().map((m) => m.id)
+    expect(hosted).toContain('meet')
+    expect(core.kernel.registry.get('meet')?.router).toBeTypeOf('function')
+  })
+
+  it('applied the meet migrations into its own schema', async () => {
+    const { rows } = await core.kernel.database.db.execute<{ count: number }>(
+      (await import('drizzle-orm'))
+        .sql`select count(*)::int as count from information_schema.tables where table_schema = 'mod_meet'`,
+    )
+    // rooms, meetings, participants, invites, plus the kernel's own __migrations.
+    expect(rows[0]?.count ?? 0).toBeGreaterThanOrEqual(4)
+  })
+})
+
+/**
+ * Meetings arrive switched off, proved against the running service rather than argued.
+ *
+ * This is the reproduction the whole `meet` design rests on. `isEnabled` answers
+ * `row?.enabled ?? true`, so adding a sixth module to this image switches it **on** in every
+ * workspace on every instance the night it rolls out — including workspaces created long before it
+ * existed, whose administrators never saw a decision to make. The only thing standing between that
+ * and a Meetings nav item that appears unannounced and fails on click is that both of `meet`'s
+ * capabilities default to off and neither is `required`.
+ *
+ * So the workspace below is created and **nothing is touched on its switchboard**, which is the
+ * state every existing workspace on every instance will be in. `module-meet`'s own suite asserts the
+ * same three things against a stubbed `core.settings.getModule`; this asserts them against the real
+ * settings store, which is the thing that will actually answer in production.
+ */
+describe('a workspace that has never opened Settings → Modules', () => {
+  type MeetApi = {
+    config: {
+      get(i: Record<string, unknown>): Promise<{
+        configured: boolean
+        mediaUrl: string | null
+        reachable: boolean
+        maxParticipants: number
+      }>
+    }
+    meetings: {
+      start(i: Record<string, unknown>): Promise<{ token: string }>
+      join(i: Record<string, unknown>): Promise<{ token: string }>
+    }
+  }
+
+  let untouched: string
+  let meet: MeetApi
+  /**
+   * A client re-read **after** the workspace exists.
+   *
+   * `owner.api` is bound to the principal resolved at sign-up, whose memberships do not include a
+   * workspace created afterwards — so `workspaceScoped` refuses it with FORBIDDEN, which looks
+   * exactly like the failure these tests are here to detect.
+   */
+  let admin: Awaited<ReturnType<typeof core.apiOf>>
+
+  beforeAll(async () => {
+    const workspace = await owner.api.workspaces.create({
+      name: 'Untouched',
+      slug: `untouched-${Date.now().toString(36)}`,
+    })
+    untouched = workspace.id
+    admin = await core.apiOf(owner.id)
+    meet = core.moduleApi('meet', await owner.principal()) as MeetApi
+  }, 60_000)
+
+  it('has meet switched on as a module, which is exactly why the rest of this matters', async () => {
+    // Asserted rather than assumed. If this ever answers false the three tests below would pass for
+    // an entirely different reason, and the property they exist to prove would go unchecked.
+    expect(await core.kernel.isModuleEnabled(untouched, 'meet')).toBe(true)
+  })
+
+  it('answers 404 — not 403 — from every meetings procedure', async () => {
+    /*
+     * 404 is the honest answer and 403 is not: `forbidden` says the surface exists and you may not
+     * have it, which is false for a workspace that never asked for meetings, and it contradicts a
+     * shell that has already hidden the navigation.
+     */
+    await expect(meet.meetings.start({ workspaceId: untouched })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+    await expect(
+      meet.meetings.join({ workspaceId: untouched, meetingId: '00000000-0000-4000-8000-000000000001' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it('still answers config.get, which is how an administrator finds out why', async () => {
+    // The deliberate exception. This is the question somebody asks *because* meetings do not work,
+    // so gating it on `calls` would answer 404 to the only person who needed it. No LiveKit is
+    // configured in a test run, and `configured: false` is the true and useful answer.
+    const config = await meet.config.get({ workspaceId: untouched })
+    expect(config.configured).toBe(false)
+    expect(config.reachable).toBe(false)
+    expect(config.maxParticipants).toBe(20)
+  })
+
+  it('offers calls and rooms as switches, both off, neither forced', async () => {
+    // What the administrator is shown. A capability marked `required` is never offered as a switch,
+    // which is the one state this module must not be in.
+    const listed = await admin.workspaces.modules.list({ workspaceId: untouched })
+    const manifest = listed.find((m) => m.manifest.id === 'meet')?.manifest
+    expect(manifest?.capabilities.map((c) => c.id)).toEqual(['calls', 'rooms'])
+    expect(manifest?.capabilities.filter((c) => c.required || c.defaultEnabled)).toEqual([])
+    expect(
+      listed.find((m) => m.manifest.id === 'meet')?.state.capabilities,
+      'nothing resolved on for a workspace that saved nothing',
+    ).toEqual([])
+  })
+
+  it('starts answering the moment an administrator switches calls on', async () => {
+    /*
+     * The other direction, and it is what makes the 404s above mean something: without it they
+     * would be equally consistent with a module that is broken, unhosted, or refusing for a reason
+     * nobody has established.
+     *
+     * `meetings.join` still refuses here — with no LiveKit configured there is nothing to mint a
+     * token with — but the refusal changes from NOT_FOUND to the module saying so, which is the
+     * whole difference between "this workspace has no such feature" and "this instance has no media
+     * server".
+     */
+    await admin.workspaces.modules.updateSettings({
+      workspaceId: untouched,
+      moduleId: 'meet',
+      settings: { $capabilities: { calls: true } },
+    })
+    core.kernel.settings.invalidate(untouched, 'meet')
+
+    const listed = await admin.workspaces.modules.list({ workspaceId: untouched })
+    expect(listed.find((m) => m.manifest.id === 'meet')?.state.capabilities).toEqual(['calls'])
+    const refusal = await meet.meetings
+      .start({ workspaceId: untouched })
+      .then(() => 'no error')
+      .catch((e: { code?: string }) => e.code ?? String(e))
+    expect(refusal, 'the capability is on; it is LiveKit that is missing').toBe('UNAVAILABLE')
+  })
 })
