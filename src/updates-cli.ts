@@ -61,6 +61,8 @@ try {
           ? 'The upgrade was applied inside your update window.'
           : `${attempt.error ?? 'The upgrade failed.'} It will not be retried automatically.`,
         object: null,
+        // The shell forwards this to wherever the instance pages live on the hosting it is running
+        // as — see the note beside the other updates notification in `modules/core/index.ts`.
         url: '/admin/updates',
         actorId: null,
         data: { version: attempt.version, ok: attempt.ok },

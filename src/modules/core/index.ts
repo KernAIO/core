@@ -201,7 +201,12 @@ export function createCoreModule(deps: CoreDeps): ServerModule {
               module: MODULE_ID,
               type: 'core.system',
               title: `Kern ${found.release.version} is available`,
-              body: 'Open Admin → Updates to see what it changes and how to apply it.',
+              body: 'Open Updates to see what it changes and how to apply it.',
+              // No menu path in the body, and this URL is deliberately the old one: where these
+              // pages sit is the shell's business and differs by hosting (Settings → Instance on a
+              // self-hosted instance, an operator console on Kern Cloud), while core is one build
+              // that knows neither. The shell forwards `/admin/*` to wherever they are, which is
+              // also what keeps the notifications already written on people's servers working.
               url: '/admin/updates',
               object: null,
               actorId: null,
