@@ -52,6 +52,9 @@ export const RESERVED_SLUGS = new Set([
   // routed by the reverse proxy to another service, so the app never sees them
   'ws',
   'collab',
+  // LiveKit signalling: the Caddyfiles route /livekit/rtc to the SFU. Only those two paths are
+  // proxied, but a workspace holding this slug would still be shadowed on them.
+  'livekit',
   // the storage bucket (`S3_BUCKET`), routed straight to MinIO without stripping the path
   'kern',
   // MCP: the transport, and the OAuth metadata documents an AI client fetches from the site root

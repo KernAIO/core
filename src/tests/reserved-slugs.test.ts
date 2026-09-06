@@ -21,9 +21,16 @@ import { RESERVED_SLUGS, validateSlug } from '../modules/core/services/workspace
 /**
  * Top-level paths `selfhost/Caddyfile` sends to a service instead of to the app. `mcp` and
  * `.well-known` are the MCP transport and the OAuth metadata documents an AI client fetches from
- * the site root; `kern` is the storage bucket, which is why `S3_BUCKET` cannot be renamed freely.
+ * the site root; `kern` is the storage bucket, which is why `S3_BUCKET` cannot be renamed freely;
+ * `livekit` is the SFU's signalling route.
+ *
+ * This list is the half of this file that CI actually runs. The two assertions reading the real
+ * files below skip in a standalone clone, which is every CI run this repository has — so a route
+ * added in the umbrella is caught here or not at all. `livekit` proved it: the route landed in all
+ * three stacks on 2026-09-06 and was absent from both this list and `RESERVED_SLUGS` for as long
+ * as it existed, with core's CI green throughout. Adding a proxied path means adding it here.
  */
-const PROXY_PREFIXES = ['api', 'ws', 'collab', 'kern', 'mcp', '.well-known']
+const PROXY_PREFIXES = ['api', 'ws', 'collab', 'kern', 'mcp', '.well-known', 'livekit']
 /** Literal top-level segments of `repos/shell/src/routes` (route groups looked through). */
 const SHELL_ROUTES = [
   'onboarding',
