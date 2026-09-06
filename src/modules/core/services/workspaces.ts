@@ -3,6 +3,7 @@ import { coreEvents } from '@kernhq/contracts/core'
 import { KernError, type Kernel } from '@kernhq/kernel'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import { coreLifecycleEvents } from '../events.js'
 import { serWorkspace } from '../lib/ser.js'
 import { memberships, roles, user, workspaces } from '../schema/index.js'
 import { getInstanceSettings } from './admin.js'
@@ -160,7 +161,7 @@ async function requireVerifiedEmail(ctx: Ctx): Promise<void> {
 
 export async function create(
   ctx: Ctx,
-  input: { name: string; slug: string; description?: string },
+  input: { name: string; slug: string; description?: string; seedDemo?: boolean },
 ): Promise<core.Workspace> {
   const userId = requireUser(ctx.principal)
   const { kernel } = ctx
@@ -215,6 +216,17 @@ export async function create(
     { workspaceId: row.id, actorId: userId },
   )
   for (const mod of kernel.registry.all()) await mod.onWorkspaceEnabled?.(row.id, kernel)
+  /*
+   * Last, and after `onWorkspaceEnabled`, so a seeder finds whatever a module sets up for a new
+   * workspace already in place. Nothing is awaited beyond the publish: the modules fill their own
+   * schemas in their own services, and this call has a workspace to return.
+   */
+  if (input.seedDemo)
+    await kernel.emit(
+      coreLifecycleEvents.workspaceDemoSeed,
+      { workspaceId: row.id, actorId: userId },
+      { workspaceId: row.id, actorId: userId },
+    )
   return serWorkspace(row)
 }
 

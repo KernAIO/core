@@ -219,3 +219,38 @@ describe('leaving and removal', () => {
     await expectRejection(() => ownerApi.workspaces.members.leave({ workspaceId: ws.id }), 'CONFLICT')
   })
 })
+
+/**
+ * The demo-content request.
+ *
+ * Core writes none of it — it publishes `core.workspace.demo_seed` and every module that declares a
+ * `demo` seeder fills its own schema, in whichever service hosts it. So the only thing this service
+ * can be held to is that the event goes out when it was asked for, carries the new workspace and the
+ * person who asked, and does not go out when it was not asked for. A test that looked for seeded
+ * rows here would be testing modules core does not host.
+ */
+describe('demo content', () => {
+  const seedEvents: Array<{ workspaceId: string; actorId: string }> = []
+
+  beforeAll(async () => {
+    await core.kernel.events.subscribe('core.workspace.demo_seed', (e) => {
+      seedEvents.push(e.payload as { workspaceId: string; actorId: string })
+    })
+  })
+
+  it('asks every module to fill the workspace when the box was ticked', async () => {
+    const alice = await core.signUp()
+    const ws = await alice.api.workspaces.create({
+      name: 'Filled',
+      slug: slug('filled'),
+      seedDemo: true,
+    })
+    expect(seedEvents.some((e) => e.workspaceId === ws.id && e.actorId === alice.id)).toBe(true)
+  })
+
+  it('says nothing when it was not', async () => {
+    const bob = await core.signUp()
+    const ws = await bob.api.workspaces.create({ name: 'Empty', slug: slug('empty') })
+    expect(seedEvents.some((e) => e.workspaceId === ws.id)).toBe(false)
+  })
+})

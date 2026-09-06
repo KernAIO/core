@@ -51,6 +51,23 @@ export const coreLifecycleEvents = {
   accountPurge: defineEvent('core.account.purge', z.object({ userId: z.string(), requestId: z.string() }), {
     description: 'Delete everything you hold for this person',
   }),
+  /**
+   * A workspace was created with demo data asked for: every module fills its own schema.
+   *
+   * The same boundary as the purge events, pointed the other way — core cannot write into
+   * `mod_<id>`, so it asks. A module declares `demo` on its `ServerModule` and the kernel subscribes
+   * it; nothing here knows which modules exist, which is what makes this reach `chat` and `mail` in
+   * their own services as readily as the five core hosts.
+   *
+   * Fire-and-forget by design. `workspaces.create` has already returned the workspace by the time
+   * any of this runs, so a module that is down, slow or absent costs the demo content and never the
+   * workspace.
+   */
+  workspaceDemoSeed: defineEvent(
+    'core.workspace.demo_seed',
+    z.object({ workspaceId: z.string(), actorId: z.string() }),
+    { description: 'Fill this new workspace with your demo content' },
+  ),
   exportReady: defineEvent(
     'core.export.ready',
     z.object({ exportId: z.string(), workspaceId: z.string(), sizeBytes: z.number().int().nonnegative() }),
