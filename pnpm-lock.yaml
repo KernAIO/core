@@ -40,8 +40,8 @@ importers:
         specifier: ^0.18.1
         version: 0.18.1(@kernhq/contracts@0.8.3)(@kernhq/kernel@0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0)(y-protocols@1.0.7(yjs@13.6.32))
       '@kernhq/module-tracker':
-        specifier: ^0.13.1
-        version: 0.13.1(@kernhq/contracts@0.8.3)(@kernhq/kernel@0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
+        specifier: ^0.14.3
+        version: 0.14.3(@kernhq/contracts@0.8.3)(@kernhq/kernel@0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
         version: 1.30.0(zod@4.5.4)
@@ -1374,8 +1374,8 @@ packages:
       svelte:
         optional: true
 
-  '@kernhq/module-tracker@0.13.1':
-    resolution: {integrity: sha512-Gj33dk7TUKtX9GV9mhjGc1U6tAJIrr1nu9Wswx/1SRYwL5WLEv4mHhOqlYRt5d30EUaXahWs8lHfF+SgJjrg5Q==}
+  '@kernhq/module-tracker@0.14.3':
+    resolution: {integrity: sha512-icIATNGXOof+/cXG5UMw7a7kGDFp55LahP5DwHudb78N+4/03Cbmo4FURLjcX/YS8qIYDr7b2XCkIcJkVEePHA==}
     engines: {node: '>=24'}
     peerDependencies:
       '@kernhq/contracts': ^0.8.3
@@ -5810,7 +5810,7 @@ snapshots:
       - ws
       - y-protocols
 
-  '@kernhq/module-tracker@0.13.1(@kernhq/contracts@0.8.3)(@kernhq/kernel@0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)':
+  '@kernhq/module-tracker@0.14.3(@kernhq/contracts@0.8.3)(@kernhq/kernel@0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)':
     dependencies:
       '@kernhq/contracts': 0.8.3
       '@kernhq/kernel': 0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)

@@ -38,7 +38,7 @@
     "@kernhq/module-hr": "^0.24.2",
     "@kernhq/module-inventory": "^0.6.1",
     "@kernhq/module-quire": "^0.18.1",
-    "@kernhq/module-tracker": "^0.13.1",
+    "@kernhq/module-tracker": "^0.14.3",
     "@orpc/contract": "^1.15.0",
     "@orpc/openapi": "^1.15.0",
     "@orpc/server": "^1.15.0",
