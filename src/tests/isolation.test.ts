@@ -9,6 +9,7 @@
  */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { UNSECURED_BY_DESIGN } from '../modules/core/schema/core.js'
 import type { CoreApi, TestUser } from '../testing/harness.js'
 import { expectRejection, startCore, type TestCore } from '../testing/harness.js'
 
@@ -186,20 +187,10 @@ describe('row-level security under a role that cannot bypass it', () => {
   it('protects every tenant table in the core schema', async () => {
     // Derived from the schema, not from a list of tables someone remembered to add: a new table
     // with a `workspace_id` and no policy has to fail this, which is the only way the test is worth
-    // running. The exceptions are the tables that are deliberately global — the reason for each is
-    // in `migrations/0001_rls.sql` — and taking one off this list is a decision, not an oversight.
-    const GLOBAL_ON_PURPOSE = new Set([
-      'files',
-      'invitations',
-      'memberships',
-      'notifications',
-      // MCP: a token or consent belongs to one user and names one workspace, but is looked up by
-      // its owner (or the client) rather than through a workspace-scoped query — the same shape as
-      // Better Auth's api_keys. Access is decided in code, in `services/mcp.ts`.
-      'mcp_codes',
-      'mcp_consents',
-      'mcp_tokens',
-    ])
+    // running. The exceptions come from `UNSECURED_BY_DESIGN` in the schema rather than a second
+    // copy of the seven names — two lists of the same thing in one repository is how one of them
+    // goes stale while the other is the one somebody reads.
+    const GLOBAL_ON_PURPOSE = new Set(Object.keys(UNSECURED_BY_DESIGN))
 
     const { rows } = await core.kernel.database.db.execute<{
       tablename: string

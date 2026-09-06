@@ -490,3 +490,67 @@ export const RLS_TABLES = [
   'dashboard_settings',
   'data_exports',
 ] as const
+
+/**
+ * The complement of `RLS_TABLES`: tables that carry `workspace_id` and deliberately have no policy,
+ * each with the reason and the code that isolates them instead.
+ *
+ * `mod_core` holds the largest group of these in the product, and for a reason the modules do not
+ * have: core is where a request stops being anonymous. A policy keyed on `app.workspace_id` can
+ * only protect a table read *after* the workspace is known, and each of these is read before — a
+ * link, a token or a session that has not yet been resolved to a tenant. The workspace is the
+ * lookup's **output**, so it cannot be its input.
+ *
+ * Adding a name here is a decision somebody records, not a way to make a red test green: a table
+ * that belongs here is one whose isolation is enforced somewhere a reader can go and look at.
+ * Every line below was traced through its callers on 2026-09-06, not inferred from the table's
+ * shape. `src/tests/migrations.test.ts` holds the list to the catalogue in three directions, and
+ * `src/tests/isolation.test.ts` reads the same map so the two cannot drift.
+ */
+export const UNSECURED_BY_DESIGN: Record<string, string> = {
+  files:
+    'a file URL carries an id and no workspace, so `getFileRow` (services/files.ts:51) selects on ' +
+    'the id alone. Every procedure taking a caller-supplied id goes through `requireFile` (:72), ' +
+    'which reads the row and then refuses unless the principal is an instance admin, a service, or ' +
+    "holds a membership in the row's own `workspaceId`. `getFileRow`'s only other caller is the " +
+    '`core.thumbnail` job handler (`generateThumbnail`, :306), whose id is enqueued by `complete` ' +
+    '(:230) after `requireFile`. Every other query filters on the workspace: `currentStorageBytes` ' +
+    '(:63), deletion.ts:205 and :225, exports.ts:282.',
+  invitations:
+    'an invitation is redeemed by a stranger holding a link, who has no membership yet and ' +
+    'therefore no workspace to bind: `byToken` (services/invitations.ts:191) resolves the token ' +
+    'alone and serves `preview` and `accept`, and `hasPendingInvitation` (auth/signup.ts:75) reads ' +
+    'it at sign-up for the same reason. The member-facing paths filter on the workspace — `list` ' +
+    '(:19) and `revoke` (:175), both behind `scoped` + `requires(core.members.invite)` in ' +
+    'router.ts:99-110 — as do deletion.ts:227 and exports.ts:281.',
+  memberships:
+    'the table that answers *which* workspaces a caller is in, so it is necessarily read before ' +
+    'one can be bound: `loadMemberships` (auth/principal.ts:96-103) selects by `userId` with no ' +
+    'workspace filter and its result becomes `principal.memberships`, which is what every later ' +
+    'membership check consults. Every one of the other reads filters on a workspace id or on a ' +
+    'user id.',
+  notifications:
+    "a notification belongs to one person, and the shell's badge counts them across every " +
+    'workspace at once: `counts` (services/notifications.ts:232) groups by `workspaceId` filtered ' +
+    'on `userId` alone, so a policy binding one workspace would answer with one workspace of the ' +
+    'badge. Every user-facing read and write filters on `notifications.userId` — `list` (:207), ' +
+    '`markRead` (:250), `archive` (:269), `sendBadge` (:182) — and `runDigest` (:422) enumerates ' +
+    'recipients from a clock, so it has neither a user nor a workspace bound.',
+  mcp_codes:
+    'the OAuth token endpoint presents an authorization code and nothing else: `exchangeCode` ' +
+    '(mcp/oauth.ts:236) selects on `sha256(code)`, and the workspace is what the row returns. The ' +
+    'row is written by `oauth.approve` (:189), which `mcp.approve` (services/mcp.ts:60) reaches ' +
+    'only after `requireMember` for the workspace being consented to.',
+  mcp_tokens:
+    'the same shape one step later: `verifyAccessToken` (mcp/oauth.ts:295) and `rotateRefresh` ' +
+    '(:269) resolve a bearer by token hash and kind before any workspace is known, and the ' +
+    "grant's workspace comes out of the row. `revokeConnection` (services/mcp.ts:199) is the one " +
+    "caller-supplied id: it reads the row, then requires `core.integrations.manage` at the row's " +
+    "own workspace unless the token is the caller's. `listWorkspaceTokens` (:167) filters on " +
+    '`workspaceId`.',
+  mcp_consents:
+    'read by `userId` + `clientId` on the consent screen (services/mcp.ts:43-47), where the user ' +
+    "id is the auth request's and the request has already been refused unless it is the caller's " +
+    '(:41). Written only by `oauth.approve`, which `mcp.approve` (:60) reaches after ' +
+    '`requireMember(principal, workspaceId)`.',
+}
