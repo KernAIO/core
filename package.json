@@ -33,7 +33,7 @@
     "@better-auth/sso": "^1.7.1",
     "@kernhq/contracts": "^0.8.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@kernhq/kernel": "^0.10.2",
+    "@kernhq/kernel": "^0.10.5",
     "@kernhq/module-billing": "^0.5.19",
     "@kernhq/module-hr": "^0.24.2",
     "@kernhq/module-inventory": "^0.6.1",
