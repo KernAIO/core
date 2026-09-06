@@ -276,12 +276,124 @@ export async function customRolePermissions(
  *   `tracker.projects.list` refuses a guest whatever bindings it holds. Fixing that means a module
  *   listing at workspace scope and filtering per project, which is a change in every module rather
  *   than here. Reading a named issue in a bound project already works.
+ *
+ * **This is no longer where the floor is enforced, and it never covered more than core.** The list
+ * below is `allPermissions()` of the process that answers, which is always core — so it named
+ * core's keys and the five modules core hosts, and a guest in `chat`, `mail` or `collab` was
+ * restrained by nothing at all. `Authz.effective()` applies the floor locally now, from the defs of
+ * whichever process is asking, so it covers every service by construction.
+ *
+ * What is left here is the rolling-deploy half. A service running an image older than that kernel
+ * change still gets exactly the binding it gets today, so no restraint is removed while the two
+ * versions run side by side; a service running the new kernel applies the same deletions twice,
+ * which is idempotent. Once no supported image predates the local floor this function and its
+ * synthetic binding can go.
  */
 function guestFloor(kernel: Kernel, granted: ReadonlySet<string>): string[] {
   return kernel.authz
     .allPermissions()
     .filter((p) => p.scope !== 'workspace' && p.scope !== 'instance' && !granted.has(p.key))
     .map((p) => p.key)
+}
+
+/**
+ * A guest scope is an object ref — `module:type:id`, e.g. `tracker:project:<uuid>`. `project` and
+ * `space` are the two module hierarchies that have their own permission scope; everything else is
+ * bound as an object, which is what a chat channel or a single document is.
+ */
+function guestScopeKind(type: string): Binding['scopeKind'] {
+  return type === 'project' ? 'project' : type === 'space' ? 'space' : 'object'
+}
+
+/**
+ * Turn the guest scopes a membership carries into the allow half of the guest model.
+ *
+ * The floor removes every project/space/object permission from a guest's workspace-level set. That
+ * is the whole of the fail-closed half and, on its own, it means a guest reads nothing — which is
+ * why `invitations.guestScopes` mattered: an administrator picks the projects an external
+ * contractor may see, and until now that choice was validated, stored, serialised and read by no
+ * authorization code anywhere. Nothing turned it into a grant.
+ *
+ * One binding per scope does. `Authz.can()` consults narrow-scope bindings before it falls through
+ * to `effective()`, and the chain it walks excludes workspace, so a project-scoped allow survives
+ * the workspace-scoped floor. That is a real read and not a decorative row: `tracker`'s
+ * `issues.get` and `issues.query` carry no router-level `requires()` and check at project scope
+ * through `AccessService`, so a guest bound to one project reads that project's issues and is
+ * refused the others.
+ *
+ * What it grants is the module's own guest defaults **at that scope kind** — the keys the module
+ * already says a guest should have, restored for the one project the administrator named. Deriving
+ * them beats a hardcoded list for the same reason `permissionRegistry` does: the module owns its
+ * permissions and a copy here would drift the first time one moved.
+ *
+ * Two things it deliberately does not do:
+ *
+ * - **A module core does not host gets no binding.** The keys come from `kernel.authz`, so a
+ *   `chat:channel:<id>` scope finds nothing here and is skipped with a warning rather than written
+ *   as an empty binding, which would read as a grant and be none. That is the same boundary the
+ *   floor used to have, pointed the other way, and it is why the floor moved into the kernel: core
+ *   can restrain nothing it cannot name, and it can grant nothing it cannot name either.
+ * - **It does not let the guest list.** `tracker.projects.list` asks at workspace scope and refuses
+ *   whatever bindings the guest holds. `issues.query` filters per project and does work.
+ */
+export async function applyGuestScopes(
+  kernel: Kernel,
+  workspaceId: string,
+  userId: string,
+  scopes: string[],
+): Promise<number> {
+  if (!scopes.length) return 0
+  const defs = kernel.authz.allPermissions()
+  let written = 0
+  for (const scope of scopes) {
+    const [moduleId, type, ...rest] = scope.split(':')
+    const scopeId = rest.join(':')
+    if (!moduleId || !type || !scopeId) {
+      kernel.log.warn({ scope }, 'guest scope is not a module:type:id ref; no binding written')
+      continue
+    }
+    const scopeKind = guestScopeKind(type)
+    const permissions = defs
+      .filter((p) => p.module === moduleId && p.scope === scopeKind && p.defaultRoles?.includes('guest'))
+      .map((p) => p.key)
+    if (!permissions.length) {
+      kernel.log.warn(
+        { scope, moduleId, scopeKind },
+        'no guest-default permission at this scope is known to this process; no binding written',
+      )
+      continue
+    }
+    await kernel.database.withWorkspace(workspaceId, async (tx) => {
+      const conds = [
+        eq(roleBindings.workspaceId, workspaceId),
+        eq(roleBindings.subjectType, 'user'),
+        eq(roleBindings.subjectId, userId),
+        eq(roleBindings.scopeKind, scopeKind),
+        eq(roleBindings.scopeId, scopeId),
+        eq(roleBindings.deny, false),
+        sql`${roleBindings.roleId} is null`,
+      ]
+      const [existing] = await tx
+        .select({ id: roleBindings.id })
+        .from(roleBindings)
+        .where(and(...conds))
+        .limit(1)
+      if (existing) await tx.update(roleBindings).set({ permissions }).where(eq(roleBindings.id, existing.id))
+      else
+        await tx.insert(roleBindings).values({
+          workspaceId,
+          subjectType: 'user',
+          subjectId: userId,
+          roleId: null,
+          permissions,
+          scopeKind,
+          scopeId,
+          deny: false,
+        })
+    })
+    written++
+  }
+  return written
 }
 
 export async function bindingsFor(

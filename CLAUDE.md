@@ -264,24 +264,40 @@ and a reference UI at `/api/docs`.
   workspace is checked out around us, re-derives them from the shipped Caddy configs and shell's
   routes.
 - **A guest saw every project, and the obvious repair would not have changed that.** `guestScopes`
-  is validated on the invitation, written onto the invitation and the membership and serialised
-  back — and **no authorization code in the organisation reads it**, while `tracker` gives `guest`
+  was validated on the invitation, written onto the invitation and the membership and serialised
+  back — and **no authorization code in the organisation read it**, while `tracker` gives `guest`
   five project-scoped defaults and `quire` three space-scoped ones. So the role a customer picks for
   an external contractor read and edited every project in the workspace, under a shell string that
   says "Sees only what they are explicitly given". Writing a project-scoped `role_binding` per
   `guestScope` — the repair everyone reaches for — grants what was already granted and restrains
-  nothing: `Authz.can()` consults narrow-scope bindings only when the **caller** asks at a narrow
-  scope, falls through to `effective()` when it finds none, and `requires()` (what every module's
-  list procedure uses) always asks at workspace scope. Trace the call path before trusting the
-  mechanism.
+  nothing **on its own**: `Authz.can()` consults narrow-scope bindings only when the **caller** asks
+  at a narrow scope, falls through to `effective()` when it finds none, and `requires()` (what every
+  module's list procedure uses) always asks at workspace scope. Trace the call path before trusting
+  the mechanism.
+  **Beside the floor it is the half that makes the choice mean something, and it is written now.**
+  `invitations.accept` turns each `module:type:id` scope into one allow binding (`project` and
+  `space` map to their own scope kind, everything else to `object`) carrying that module's own
+  guest defaults at that scope kind — derived from `kernel.authz`, never a list here, for the same
+  reason `permissionRegistry` derives. A module core does not host finds no keys and gets **no**
+  binding with a warning rather than an empty one, which would read as a grant and be none.
+  Asserted through `tracker.issues.get`, which is the only assertion that answers the question: a
+  row in `role_bindings` is exactly what the naive repair produces.
   What does bite is the other half of the same machinery: `effective()` applies **workspace-scoped**
-  bindings and honours `deny`. `bindingsFor` therefore prepends one synthetic
-  `builtin_role:guest / workspace / deny` binding carrying every permission whose `scope` is not
-  `workspace`, minus whatever the member's custom roles grant — `effective()` adds custom-role keys
-  *before* it applies bindings, so a blanket deny would silently undo an administrator's explicit
-  grant. A guest with a project binding still reads that project, because the chain `can()` walks
-  excludes workspace. Prepended, not appended: the last word on a key wins, so a stored
-  workspace-scoped allow still beats the floor.
+  bindings and honours `deny`, so one blanket deny removes every project/space/object permission
+  from a guest's workspace-level set. A guest with a project binding still reads that project,
+  because the chain `can()` walks excludes workspace.
+  **That floor lived here and only ever covered core.** `bindingsFor` prepended a synthetic
+  `builtin_role:guest / workspace / deny` binding enumerated from `kernel.authz.allPermissions()` —
+  of the process that answers, which is always core — so it named core's keys and the five modules
+  core hosts and nothing else. A guest in `chat`, `mail` or `collab` was restrained by not one key:
+  `chat.message.post` is `scope: 'object'` with `guest` in its `defaultRoles`, so a guest could post
+  in every channel in the workspace while core reported the floor as applied. `Authz.effective()`
+  applies it locally now, from the defs of whichever process is asking, which covers every service
+  by construction rather than by a list. The synthetic binding stays until no supported image
+  predates that kernel; a new kernel applies the same deletions twice, which is idempotent.
+  Order is load-bearing and unchanged: the floor first, then custom roles (so an administrator's
+  explicit grant survives it — "explicitly given" includes a role), then stored bindings, so a
+  stored workspace-scoped allow still beats the floor.
   Two things this deliberately does not do. It does not let a scoped guest **list** — `requires()`
   asks at workspace scope, so `tracker.projects.list` refuses a guest whatever bindings it holds;
   making that work means every module listing at workspace scope and filtering per project, which is
@@ -289,6 +305,16 @@ and a reference UI at `/api/docs`.
   still *declare* the guest access the floor removes — `module-tracker` and `module-quire` should
   drop `guest` from their project/space-scoped permissions so the declaration and the behaviour
   agree. Fail-closed first: an under-powered guest is a disappointment, a leaky one is a breach.
+  **A module's own suite could not see the floor while it lived here, and three tracker tests
+  describe a guest that production has not had since it shipped.** `module-tracker` boots the real
+  kernel with a bare `guest` principal and no bindings, and asserts that guest may comment, watch
+  and schedule — all project-scoped keys, all refused in `core` the moment the floor existed,
+  because the module's harness has no core store to receive the synthetic binding from. Moving the
+  floor into `Authz` makes the harness agree with the service and those three go red
+  (`src/server/tracker.int.test.ts`, measured 2026-09-06). They want a project binding on the
+  guest, not the floor removed. The general shape: a control enforced in one service is invisible
+  to every suite that does not boot that service, so a module's own tests can keep certifying
+  behaviour the product stopped having.
 - **A presigned PUT does not bind the content type, so the upload is the wrong place to enforce
   one.** `X-Amz-SignedHeaders` on the URL the kernel signs is `content-length;host` — `content-type`
   is not in it — so the uploader sends whatever it likes and the object carries it: a ticket issued

@@ -518,4 +518,89 @@ describe('a guest in a hosted module', () => {
     // the floor must not undo an administrator's explicit grant
     expect(perms.permissions).toContain('tracker.issue.view')
   })
+
+  /**
+   * The half `guestScopes` was missing: accepting the invitation has to make the choice mean
+   * something.
+   *
+   * Asserted through `tracker.issues.get`, not by reading `core.role_bindings`. A row in that table
+   * is what the naive repair produces and it grants nothing on its own — the question is what the
+   * contractor can actually open, and that is the only assertion that answers it.
+   */
+  it('reads the project its invitation named, and no other', async () => {
+    const f = await fixture('guestinvite')
+    const owner = await trackerFor(f.user.owner.id)
+    const scoped = await owner.projects.create({
+      workspaceId: f.workspaceId,
+      key: `GC${n}`,
+      name: 'Scoped by the invitation',
+      template: 'software',
+    })
+    const other = await owner.projects.create({
+      workspaceId: f.workspaceId,
+      key: `GD${n}`,
+      name: 'Nothing to do with them',
+      template: 'software',
+    })
+    const mine = await owner.issues.create({
+      workspaceId: f.workspaceId,
+      projectId: scoped.id,
+      title: 'the work they were hired for',
+    })
+    const theirs = await owner.issues.create({
+      workspaceId: f.workspaceId,
+      projectId: other.id,
+      title: 'commercially sensitive',
+    })
+
+    const contractor = await core.signUp({ name: 'Contractor' })
+    const [invitation] = await f.api.owner.workspaces.invitations.create({
+      workspaceId: f.workspaceId,
+      invites: [
+        {
+          email: contractor.email,
+          role: 'guest',
+          roleIds: [],
+          groupIds: [],
+          guestScopes: [`tracker:project:${scoped.id}`],
+        },
+      ],
+    })
+    await (await core.apiOf(contractor.id)).workspaces.invitations.accept({
+      token: await core.inviteToken(invitation!.id),
+    })
+
+    const guest = await trackerFor(contractor.id)
+    const read = await guest.issues.get({ workspaceId: f.workspaceId, issueId: mine.id })
+    expect(read.title).toBe('the work they were hired for')
+    expect(await allowed(() => guest.issues.get({ workspaceId: f.workspaceId, issueId: theirs.id }))).toBe(
+      false,
+    )
+    // and the invitation grants nothing at workspace level: the floor still holds there
+    const workspaceSet = await (await core.apiOf(contractor.id)).workspaces.myPermissions({
+      workspaceId: f.workspaceId,
+    })
+    expect(workspaceSet.permissions).not.toContain('tracker.issue.view')
+  })
+
+  /** A guest invited with no scopes is where it was: nothing outside the workspace-level set. */
+  it('grants nothing when the invitation named no scope', async () => {
+    const f = await fixture('guestnoscope')
+    const owner = await trackerFor(f.user.owner.id)
+    const project = await owner.projects.create({
+      workspaceId: f.workspaceId,
+      key: `GE${n}`,
+      name: 'Unscoped',
+      template: 'software',
+    })
+    const issue = await owner.issues.create({
+      workspaceId: f.workspaceId,
+      projectId: project.id,
+      title: 'not for them',
+    })
+    const guest = await trackerFor(f.user.guest.id)
+    expect(await allowed(() => guest.issues.get({ workspaceId: f.workspaceId, issueId: issue.id }))).toBe(
+      false,
+    )
+  })
 })

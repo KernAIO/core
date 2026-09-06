@@ -11,6 +11,7 @@ import { invitations, memberships, user, workspaces } from '../schema/index.js'
 import { type Ctx, callerRole, permissionsChanged, ROLE_RANK, requireUser } from './common.js'
 import { billableSeats } from './members.js'
 import { createNotification } from './notifications.js'
+import { applyGuestScopes } from './roles.js'
 import { requireWorkspace } from './workspaces.js'
 
 export const INVITATION_TTL_DAYS = 14
@@ -288,6 +289,11 @@ export async function accept(ctx: Ctx, token: string): Promise<core.Workspace> {
     const { setMembersForUser } = await import('./groups.js')
     await setMembersForUser(ctx, w.id, userId, i.groupIds)
   }
+  // The allow half of the guest model. A guest's workspace-level set carries no project, space or
+  // object permission at all, so without this the scopes an administrator picked are stored on the
+  // membership and change nothing. Before `permissionsChanged`, which is what invalidates the
+  // cached set the bindings belong to.
+  if (i.role === 'guest') await applyGuestScopes(kernel, w.id, userId, i.guestScopes)
   await permissionsChanged(kernel, w.id, [userId], userId)
   await kernel.emit(
     coreEvents.memberJoined,
