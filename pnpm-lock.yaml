@@ -37,8 +37,8 @@ importers:
         specifier: ^0.6.1
         version: 0.6.1(@kernhq/contracts@0.8.3)(@kernhq/kernel@0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
       '@kernhq/module-meet':
-        specifier: ^0.4.0
-        version: 0.4.0(@kernhq/contracts@0.8.3)(@kernhq/kernel@0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
+        specifier: ^0.5.3
+        version: 0.5.3(@kernhq/contracts@0.8.3)(@kernhq/kernel@0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/dom-mediacapture-record@1.0.22)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)
       '@kernhq/module-quire':
         specifier: ^0.18.1
         version: 0.18.1(@kernhq/contracts@0.8.3)(@kernhq/kernel@0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0)(y-protocols@1.0.7(yjs@13.6.32))
@@ -1365,8 +1365,8 @@ packages:
       svelte:
         optional: true
 
-  '@kernhq/module-meet@0.4.0':
-    resolution: {integrity: sha512-nYbpAScPSd6t0S5qyeNML0WRS6oL034I6GqEPUxqQLrS2e+eeFhwx1ae8yQGfc8JCRmCS5+BzUUWXK+8hpQA+A==}
+  '@kernhq/module-meet@0.5.3':
+    resolution: {integrity: sha512-WLWhMXgd5BxYmA41axNWnbnFjIR8RVh5HaS1uSHxrTT4LZZizqBofgc3KElmZEbHyrCd0aIBL2YVQ8JVRVGnwg==}
     engines: {node: '>=24'}
     peerDependencies:
       '@kernhq/contracts': ^0.8.3
@@ -1441,8 +1441,14 @@ packages:
   '@lifeomic/attempt@3.1.0':
     resolution: {integrity: sha512-QZqem4QuAnAyzfz+Gj5/+SLxqwCAw2qmt7732ZXodr6VDWGeYLG6w1i/vYLa55JQM9wRuBKLmXmiZ2P0LtE5rw==}
 
+  '@livekit/mutex@1.1.1':
+    resolution: {integrity: sha512-EsshAucklmpuUAfkABPxJNhzj9v2sG7JuzFDL4ML1oJQSV14sqrpTYnsaOudMAw9yOaW53NU3QQTlUQoRs4czw==}
+
   '@livekit/protocol@1.48.0':
     resolution: {integrity: sha512-fYHYgltH6YavAsokl3qsHLkBdQeKCl4UORVTub5crS3t8JtKFZ0uinHDFQ+XXdNKS6Ub9gcOjV+UHcDiqnWXoQ==}
+
+  '@livekit/protocol@1.50.4':
+    resolution: {integrity: sha512-L1uggNQAqyY21smQY8AllyOYbcv9Me9TaxwuLytL1R8ck9nbYPmQLNwEDi3pOFGAMa5F8I2nUi2Jc59W5awxlA==}
 
   '@lucide/svelte@1.39.0':
     resolution: {integrity: sha512-jCgA/RqDv9uWHs4DiIUef4kpf5TfLl9y8OMGrh+W4aQTCOscT4X2BX14ta65J+5ooslrN1bXXiO9AaeAOHAcPA==}
@@ -2040,6 +2046,9 @@ packages:
 
   '@types/dockerode@4.0.1':
     resolution: {integrity: sha512-cmUpB+dPN955PxBEuXE3f6lKO1hHiIGYJA46IVF3BJpNsZGvtBDcRnlrHYHtOH/B6vtDOyl2kZ2ShAu3mgc27Q==}
+
+  '@types/dom-mediacapture-record@1.0.22':
+    resolution: {integrity: sha512-mUMZLK3NvwRLcAAT9qmcK+9p7tpU2FHdDsntR3YI4+GY88XrgG4XiE7u1Q2LAN2/FZOz/tdMDC3GQCR4T8nFuw==}
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
@@ -3383,6 +3392,11 @@ packages:
   linkifyjs@4.3.3:
     resolution: {integrity: sha512-P8aEP5U/D1/IlTY2OeYsErdwh9bGuLE30NcXtKEjgdHcahveQoQwM2yZNsioQHsWFz0P7KKudisbrzCgR0sDHg==}
 
+  livekit-client@2.22.2:
+    resolution: {integrity: sha512-o3yLYoH2eHVR/DmIZzgC96FMvtR4+g/DjeqNwS5zp12EjqrqiRULxm6Oq/YsTE97WnA6fhy23+a2hGkbce5SPA==}
+    peerDependencies:
+      '@types/dom-mediacapture-record': ^1
+
   livekit-server-sdk@2.18.0:
     resolution: {integrity: sha512-iUGmkbyi0g4DHKQ0Z4VSVs/V+ddp3T75ccQIe6LX94AYlqgyh+SVSM1lQMjFQuI3Qh6Z9v06T4xxV+vWmp7VeQ==}
     engines: {node: '>=18'}
@@ -3398,6 +3412,10 @@ packages:
 
   lodash@4.18.1:
     resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
+
+  loglevel@1.9.2:
+    resolution: {integrity: sha512-HgMmCqIJSAKqo68l0rS2AanEWfkxaZ5wNiEFb5ggm08lDs9Xl2KxBlX3PTcaD2chBM1gXAYf491/M2Rv8Jwayg==}
+    engines: {node: '>= 0.6.0'}
 
   long@5.3.2:
     resolution: {integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==}
@@ -3418,6 +3436,10 @@ packages:
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
     hasBin: true
+
+  machina@7.0.1:
+    resolution: {integrity: sha512-0Xkgs8NeBvO2hW6bjJT8ewLWrMfh1haMPstaghpASWjXkLjRhtDiaJG1Kb7mslaOHxZYxpH7PIjpmirRVYbMMA==}
+    engines: {node: '>=22.22'}
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -3887,6 +3909,9 @@ packages:
       '@sveltejs/kit':
         optional: true
 
+  rxjs@7.8.2:
+    resolution: {integrity: sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==}
+
   safe-buffer@5.1.2:
     resolution: {integrity: sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g==}
 
@@ -3906,6 +3931,13 @@ packages:
 
   samlify@2.13.1:
     resolution: {integrity: sha512-vdYr/zohDGBbfWNU4miEzc1jmWOtkLySPViapC6nfGkv9KxzLq4UlGkKyryzwLw4jVlZk88Rw93HaCRVpe+t+g==}
+
+  sdp-transform@2.15.0:
+    resolution: {integrity: sha512-KrOH82c/W+GYQ0LHqtr3caRpM3ITglq3ljGUIb8LTki7ByacJZ9z+piSGiwZDsRyhQbYBOBJgr2k6X4BZXi3Kw==}
+    hasBin: true
+
+  sdp@3.2.2:
+    resolution: {integrity: sha512-xZocWwfyp4hkbN4hLWxMjmv2Q8aNa9MhmOZ7L9aCZPT+dZsgRr6wZRrSYE3HTdyk/2pZKPSgqI7ns7Een1xMSA==}
 
   secure-json-parse@4.1.0:
     resolution: {integrity: sha512-l4KnYfEyqYJxDwlNVyRfO2E4NTHfMKAWdUuA8J0yve2Dz/E/PdBepY03RvyJpssIpRFwJoCD55wA+mEDs6ByWA==}
@@ -4199,6 +4231,9 @@ packages:
     resolution: {integrity: sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==}
     engines: {node: '>= 18'}
 
+  typed-emitter@2.1.0:
+    resolution: {integrity: sha512-g/KzbYKbH5C2vPkaXGu8DJlHrGKHLsM25Zg9WuC9pMGfuvT+X25tZQWo5fK1BjBm8+UrVE9LDCvaY0CQk+fXDA==}
+
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
@@ -4326,6 +4361,10 @@ packages:
     resolution: {integrity: sha512-OpiIUe8cuGjrj3mMBFWY+e4MMIkW3SVT+7vEIjvD9kejGUypv8GPDf84JdPWskK8zMRIJ6xYGm+Kxr8YkPyA0A==}
     engines: {node: '>= 16'}
     hasBin: true
+
+  webrtc-adapter@9.0.6:
+    resolution: {integrity: sha512-CHbl2ZQbxx164IgWRgzJno4hWtM4tFbRam1QfI3Yxhs3w/DvqluVxVWeXs3oL5/fbGkSNLKo0Ty5MgUWceNhog==}
+    engines: {node: '>=6.0.0', npm: '>=3.10.0'}
 
   which@2.0.2:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
@@ -5791,7 +5830,7 @@ snapshots:
       - sqlite3
       - ws
 
-  '@kernhq/module-meet@0.4.0(@kernhq/contracts@0.8.3)(@kernhq/kernel@0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)':
+  '@kernhq/module-meet@0.5.3(@kernhq/contracts@0.8.3)(@kernhq/kernel@0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5))(@kernhq/ui@0.14.0(@floating-ui/dom@1.8.0)(@internationalized/date@3.12.4)(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@tiptap/extension-text-style@3.31.0(@tiptap/core@3.31.0(@tiptap/pm@3.31.0)))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(svelte@5.57.0))(@prisma/client@5.22.0)(@tanstack/svelte-query@6.1.48(svelte@5.57.0))(@types/dom-mediacapture-record@1.0.22)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(fastify@5.12.1)(kysely@0.29.5)(pg@8.23.0)(svelte@5.57.0)':
     dependencies:
       '@kernhq/contracts': 0.8.3
       '@kernhq/kernel': 0.10.5(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)
@@ -5799,6 +5838,7 @@ snapshots:
       '@orpc/contract': 1.15.0
       '@orpc/server': 1.15.0(fastify@5.12.1)
       drizzle-orm: 0.45.2(@prisma/client@5.22.0)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(kysely@0.29.5)(pg@8.23.0)
+      livekit-client: 2.22.2(@types/dom-mediacapture-record@1.0.22)
       livekit-server-sdk: 2.18.0
       zod: 4.5.4
     optionalDependencies:
@@ -5818,6 +5858,7 @@ snapshots:
       - '@prisma/client'
       - '@tidbcloud/serverless'
       - '@types/better-sqlite3'
+      - '@types/dom-mediacapture-record'
       - '@types/pg'
       - '@types/sql.js'
       - '@upstash/redis'
@@ -6058,7 +6099,13 @@ snapshots:
 
   '@lifeomic/attempt@3.1.0': {}
 
+  '@livekit/mutex@1.1.1': {}
+
   '@livekit/protocol@1.48.0':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.1
+
+  '@livekit/protocol@1.50.4':
     dependencies:
       '@bufbuild/protobuf': 1.10.1
 
@@ -6746,6 +6793,8 @@ snapshots:
       '@types/docker-modem': 3.0.6
       '@types/node': 24.13.3
       '@types/ssh2': 1.15.6
+
+  '@types/dom-mediacapture-record@1.0.22': {}
 
   '@types/estree@1.0.9': {}
 
@@ -7894,6 +7943,20 @@ snapshots:
 
   linkifyjs@4.3.3: {}
 
+  livekit-client@2.22.2(@types/dom-mediacapture-record@1.0.22):
+    dependencies:
+      '@livekit/mutex': 1.1.1
+      '@livekit/protocol': 1.50.4
+      '@types/dom-mediacapture-record': 1.0.22
+      events: 3.3.0
+      jose: 6.2.10
+      loglevel: 1.9.2
+      machina: 7.0.1
+      sdp-transform: 2.15.0
+      tslib: 2.8.1
+      typed-emitter: 2.1.0
+      webrtc-adapter: 9.0.6
+
   livekit-server-sdk@2.18.0:
     dependencies:
       '@bufbuild/protobuf': 1.10.1
@@ -7907,6 +7970,8 @@ snapshots:
   lodash@4.17.21: {}
 
   lodash@4.18.1: {}
+
+  loglevel@1.9.2: {}
 
   long@5.3.2: {}
 
@@ -7925,6 +7990,8 @@ snapshots:
   luxon@3.7.2: {}
 
   lz-string@1.5.0: {}
+
+  machina@7.0.1: {}
 
   magic-string@0.30.21:
     dependencies:
@@ -8433,6 +8500,11 @@ snapshots:
       lz-string: 1.5.0
       svelte: 5.57.0
 
+  rxjs@7.8.2:
+    dependencies:
+      tslib: 2.8.1
+    optional: true
+
   safe-buffer@5.1.2: {}
 
   safe-buffer@5.2.1: {}
@@ -8454,6 +8526,10 @@ snapshots:
       xml-crypto: 6.1.2
       xml-escape: 1.1.0
       xpath: 0.0.34
+
+  sdp-transform@2.15.0: {}
+
+  sdp@3.2.2: {}
 
   secure-json-parse@4.1.0: {}
 
@@ -8843,6 +8919,10 @@ snapshots:
       media-typer: 1.1.1
       mime-types: 3.0.2
 
+  typed-emitter@2.1.0:
+    optionalDependencies:
+      rxjs: 7.8.2
+
   typescript@5.9.3: {}
 
   undici-types@5.26.5: {}
@@ -8918,6 +8998,10 @@ snapshots:
       minimist: 1.2.8
     transitivePeerDependencies:
       - supports-color
+
+  webrtc-adapter@9.0.6:
+    dependencies:
+      sdp: 3.2.2
 
   which@2.0.2:
     dependencies:
