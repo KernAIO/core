@@ -140,8 +140,8 @@ and a reference UI at `/api/docs`.
   a module ships no MCP code. Tool calls execute as ordinary REST requests carrying the caller's
   access token, so permissions/capabilities have exactly one enforcement site. OAuth is in
   `oauth.ts` (tokens stored hashed, prefix `kmt_`/`kmr_`, PKCE S256 only); the consent screen and
-  admin settings live in shell, the capability switch is `core.mcp` on the core manifest. See ADR
-  0011.
+  admin settings live in shell, the capability switch is `core.mcp` on the core manifest. The
+  design lives in `src/mcp/catalog.ts` and `src/mcp/oauth.ts`; there is no ADR for it.
 - **`db:generate` diffs against the last *snapshot*, not the last migration.** `0003_dashboard` was
   hand-written with no snapshot, so the next generate re-emitted every dashboard column into the new
   file. After generating, trim the SQL to only your new statements — but keep the snapshot it wrote,
