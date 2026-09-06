@@ -1,0 +1,11 @@
+-- Search documents carry the permission check the hit must clear.
+--
+-- `acl` is an additive set overlap, so a deny binding is invisible to it and search fails open. This
+-- column holds `{ permission, scope }`, which `search()` resolves through `Authz.can` — the one
+-- place that understands a deny. Nullable, and null means "filtered by acl alone", so the image
+-- before this one reads every row it writes and this one reads every row that image wrote.
+--
+-- Idempotent, like every migration here: the kernel migrates each hosted module at boot and a
+-- migration that throws is a service that never binds :4000, taking the five modules core hosts
+-- down with it.
+ALTER TABLE "mod_core"."search_documents" ADD COLUMN IF NOT EXISTS "authz" jsonb;

@@ -28,6 +28,7 @@ async function index(doc: {
   title: string
   body?: string | null
   acl?: string[] | null
+  authz?: coreContracts.SearchDocument['authz']
   module?: string
   type?: string
   updatedAt?: string
@@ -41,6 +42,7 @@ async function index(doc: {
     url: `/notes/${id}`,
     icon: null,
     acl: doc.acl ?? null,
+    authz: doc.authz ?? null,
     updatedAt: doc.updatedAt ?? new Date().toISOString(),
     attributes: {},
   }
@@ -183,6 +185,148 @@ describe('acl filtering', () => {
     expect(
       (await promoted.search({ workspaceId, q: 'hafnium', limit: 10 })).hits.map((h) => h.object.id),
     ).toEqual([id])
+  })
+})
+
+/**
+ * `acl` is an additive set overlap, so a **deny** binding is invisible to it and search fails open.
+ * The document declares `{ permission, scope }` and core resolves it through `Authz.can`, which is
+ * the one place that understands a deny.
+ *
+ * Every assertion here is about what `core.search` hands back to a caller, never about the column:
+ * the row is right in both the broken and the fixed version, and only one of them is what the
+ * person searching experiences.
+ *
+ * `tracker.issue.view` is used because it is a real project-scoped key of a module core hosts —
+ * an invented key would prove the fail-closed path and not this one.
+ */
+describe('permission resolution beyond the acl', () => {
+  const projectId = '01920000-0000-7000-8000-00000000c001'
+  const otherProjectId = '01920000-0000-7000-8000-00000000c002'
+  const inProject = (id: string) =>
+    ({ permission: 'tracker.issue.view', scope: { kind: 'project' as const, id } }) satisfies NonNullable<
+      coreContracts.SearchDocument['authz']
+    >
+
+  const setDeny = async (subjectId: string, scopeId: string, deny: boolean) =>
+    ownerApi.workspaces.roles.bindings.set({
+      workspaceId,
+      binding: {
+        subjectType: 'user',
+        subjectId,
+        roleId: null,
+        permissions: ['tracker.issue.view'],
+        scopeKind: 'project',
+        scopeId,
+        deny,
+      },
+    })
+
+  it('withholds a hit the caller is denied at its scope, and shows it once the deny is gone', async () => {
+    const id = await index({
+      title: 'ENG-1 caesium regression',
+      body: 'the caesium build is broken on every runner',
+      module: 'tracker',
+      type: 'issue',
+      acl: ['role:owner', 'role:admin', 'role:member'],
+      authz: inProject(projectId),
+    })
+
+    // Before the deny: the member is in the acl and holds the key, so the hit is theirs.
+    expect(
+      (await memberApi.search({ workspaceId, q: 'caesium', limit: 10 })).hits.map((h) => h.object.id),
+    ).toEqual([id])
+
+    const binding = await setDeny(member.id, projectId, true)
+    const deniedApi = await core.apiOf(member.id)
+    const denied = await deniedApi.search({ workspaceId, q: 'caesium', limit: 10 })
+    // Not merely absent from the list: no title and no snippet of the indexed body escaped either.
+    expect(denied.hits).toEqual([])
+
+    await ownerApi.workspaces.roles.bindings.delete({ workspaceId, id: binding.id })
+    expect(
+      (await (await core.apiOf(member.id)).search({ workspaceId, q: 'caesium', limit: 10 })).hits.map(
+        (h) => h.object.id,
+      ),
+    ).toEqual([id])
+  })
+
+  it('withholds only the scope that is denied, not every hit the module indexed', async () => {
+    const denied = await index({
+      title: 'ENG-2 europium crash',
+      module: 'tracker',
+      type: 'issue',
+      acl: ['role:member'],
+      authz: inProject(projectId),
+    })
+    const kept = await index({
+      title: 'ENG-3 europium follow-up',
+      module: 'tracker',
+      type: 'issue',
+      acl: ['role:member'],
+      authz: inProject(otherProjectId),
+    })
+
+    const binding = await setDeny(member.id, projectId, true)
+    expect(
+      (await (await core.apiOf(member.id)).search({ workspaceId, q: 'europium', limit: 10 })).hits.map(
+        (h) => h.object.id,
+      ),
+    ).toEqual([kept])
+    expect(denied).not.toBe(kept)
+    await ownerApi.workspaces.roles.bindings.delete({ workspaceId, id: binding.id })
+  })
+
+  it('leaves an instance admin and a service principal seeing everything', async () => {
+    const id = await index({
+      title: 'ENG-4 thulium incident',
+      module: 'tracker',
+      type: 'issue',
+      acl: ['role:member'],
+      authz: inProject(projectId),
+    })
+    const binding = await setDeny(member.id, projectId, true)
+
+    expect(
+      (await core.system.search({ workspaceId, q: 'thulium', limit: 10 })).hits.map((h) => h.object.id),
+    ).toEqual([id])
+
+    await core.promoteToInstanceAdmin(member.id)
+    expect(
+      (await (await core.apiOf(member.id)).search({ workspaceId, q: 'thulium', limit: 10 })).hits.map(
+        (h) => h.object.id,
+      ),
+    ).toEqual([id])
+
+    await ownerApi.workspaces.roles.bindings.delete({ workspaceId, id: binding.id })
+  })
+
+  it('withholds a hit whose permission key this process cannot resolve', async () => {
+    // A module hosted by another service registers its keys in *that* process, so core cannot
+    // answer for it. Withheld rather than shown: an unresolvable document fails closed.
+    await index({
+      title: 'Unknown lutetium document',
+      acl: null,
+      authz: { permission: 'nowhere.thing.view', scope: { kind: 'object', id: 'x' } },
+    })
+    expect((await ownerApi.search({ workspaceId, q: 'lutetium', limit: 10 })).hits).toEqual([])
+  })
+
+  it('still applies the acl to a document that declares a permission', async () => {
+    // The two filters are not alternatives. `can()` at a narrow scope with no binding falls through
+    // to the caller's workspace set and answers true, so it cannot tell a private project's members
+    // from everybody else — only the acl knows a readership. A hit clears both or it is withheld.
+    const id = await index({
+      title: 'Private samarium note',
+      module: 'tracker',
+      type: 'issue',
+      acl: [member.id],
+      authz: inProject(otherProjectId),
+    })
+    expect(
+      (await memberApi.search({ workspaceId, q: 'samarium', limit: 10 })).hits.map((h) => h.object.id),
+    ).toEqual([id])
+    expect((await guestApi.search({ workspaceId, q: 'samarium', limit: 10 })).hits).toEqual([])
   })
 })
 

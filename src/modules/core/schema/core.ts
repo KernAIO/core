@@ -7,6 +7,7 @@
  * Tenant tables (RLS via `app.workspace_id`, see migrations): roles, groups, group_members, role_bindings,
  * workspace_modules, integrations, activity_events, search_documents.
  */
+import type { core } from '@kernhq/contracts'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
@@ -391,6 +392,11 @@ export const searchDocuments = coreSchema.table(
     icon: text('icon'),
     /** null = visible to every member; else user ids / group ids / `role:<role>` */
     acl: text('acl').array(),
+    /**
+     * `{ permission, scope }` the caller must clear through `Authz.can` before this hit is shown;
+     * null = nothing to prove beyond `acl`. See `SearchDocument.authz` in `@kernhq/contracts`.
+     */
+    authz: jsonb('authz').$type<core.SearchDocument['authz']>(),
     attributes: jsonb('attributes').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     updatedAt: ts('updated_at').notNull().defaultNow(),
     tsv: tsvector('tsv').generatedAlwaysAs(
